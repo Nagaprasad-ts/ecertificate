@@ -35,11 +35,15 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        // Load role + permissions once; derive the slug list from the same instance
+        $user = $request->user()?->load('role.permissions');
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $request->user(),
+                'user'        => $user,
+                'permissions' => $user?->role?->permissions->pluck('slug') ?? [],
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
