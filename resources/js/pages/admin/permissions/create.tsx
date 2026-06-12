@@ -22,11 +22,11 @@ export default function PermissionsCreate() {
     }
 
     function handlePageChange(page: string) {
-        const cleaned = page.toLowerCase().replace(/\s+/g, '_');
+        const slugPart = page.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
         setData((prev) => ({
             ...prev,
-            page: cleaned,
-            slug: prev.name ? `${cleaned}.${prev.name.toLowerCase().replace(/\s+/g, '_')}` : prev.slug,
+            page,
+            slug: prev.name ? `${slugPart}.${prev.name.toLowerCase().replace(/\s+/g, '_')}` : prev.slug,
         }));
     }
 

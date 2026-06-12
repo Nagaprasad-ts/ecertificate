@@ -212,3 +212,109 @@ Use Wayfinder to generate TypeScript functions for Laravel routes. Import from `
 - IMPORTANT: Activate `inertia-react-development` when working with Inertia React client-side patterns.
 
 </laravel-boost-guidelines>
+
+---
+
+## Project: eCertificate Platform
+
+### Commands
+
+```bash
+# Start everything (serve + queue + Vite) concurrently
+composer dev
+
+# PHP linting (Laravel Pint)
+composer lint            # fix
+composer lint:check      # check only — run after modifying PHP files: vendor/bin/pint --dirty
+
+# Frontend
+npm run types:check      # tsc --noEmit
+npm run lint             # ESLint --fix
+npm run lint:check
+npm run format           # Prettier --write resources/
+npm run build
+
+# Permissions — run after adding/removing a permission-gated route
+php artisan permissions:sync                 # upsert & assign to super_admin
+php artisan permissions:sync --prune-orphans # also delete removed permissions from DB
+php artisan permissions:sync --dry-run       # preview without writing
+
+# Reset dev DB
+php artisan migrate:fresh --seed             # creates 1 super_admin user only
+```
+
+### Inertia layout routing
+
+Layout is resolved in `resources/js/app.tsx` based on page path — do NOT import or wrap `AppLayout` inside page components:
+
+| Page path prefix | Layout applied |
+|---|---|
+| `auth/*` | `AuthLayout` |
+| `settings/*` | `[AppLayout, SettingsLayout]` |
+| `welcome`, `certificates/show`, `certificate/search` | none (public) |
+| everything else | `AppLayout` |
+
+Pages export a static `.layout = { breadcrumbs: [...] }` property to inject breadcrumbs into the shell.
+
+### Authorization (RBAC)
+
+`User → role_id → Role ↔ role_permission ↔ Permission`. One role per user, nullable.
+
+Two middleware aliases in `bootstrap/app.php`:
+- **`super_admin`** — `role->slug === 'super_admin'`; gates the entire `/admin` prefix group (users, roles, permissions management)
+- **`permission:{slug}`** (`HasPermission`) — short-circuits immediately for `super_admin`, then calls `$user->hasPermission($slug)` for everyone else
+
+Controllers use `HasMiddleware` with `Middleware` objects for per-action gating (logos, signatures, templates, events, participants, certificates).
+
+Permission slugs: `{resource}.{action}` e.g. `events.create`, `batches.set-window`.
+
+**To add a new permission-gated route:**
+1. Add route with `->middleware('permission:resource.action')`, or add it to a controller's `HasMiddleware::middleware()`.
+2. Routes with a `.index` name not under `admin.`/`settings.` are auto-discovered by the sync command.
+3. For non-CRUD feature gates, add an entry to `FEATURE_PERMISSIONS` in `app/Console/Commands/SyncPermissions.php`.
+4. Run `php artisan permissions:sync`.
+
+**`super_admin` is immutable** — `RoleController` blocks rename and deletion. Never add permission checks that bypass `is_super_admin` without also updating `HasPermission`.
+
+### Data model hierarchy
+
+```
+Event
+ └── EventEdition  (event_id, year — unique per event)
+      ├── Participant  (event_edition_id, template_id, status: pending|active, batch_id)
+      ├── templates  (BelongsToMany via event_edition_template)
+      └── logos      (BelongsToMany via event_edition_logo)
+
+ImportBatch  (UUID PK: batch_id, failures JSON, email_window_from/to datetime)
+ └── event_id, event_edition_id, template_id, imported_by (user FK)
+```
+
+`certificate_no` format: `{event-slug}-{year}-{5hex}`, guaranteed unique by retry loop.
+
+### Import/confirm workflow
+
+1. Upload `.xlsx` → `ParticipantController::import()` creates `ImportBatch`, inserts participants with `status = 'pending'`.
+2. Failures stored as JSON in `import_batches.failures` — not in session.
+3. Admin sets email window via `setEmailWindow()` — blocked when `failed_count > 0`.
+4. `confirmImport()` sends emails, flips participants to `status = 'active'`. Only allowed inside the active window.
+5. `reImport()` deletes pending rows and re-runs the import under the same `batch_id`.
+
+### Certificate templates
+
+React components in `resources/js/certificate-templates/{event-slug}/{TemplateName}.tsx`. Each exports a default component accepting `CertificateProps` (defined in `certificate-templates/types.ts`).
+
+A custom Vite plugin (`templateManifestPlugin` in `vite.config.ts`) auto-scans the directory on build/dev-start and writes `storage/app/template-manifest.json` mapping `templateFile` slugs (e.g. `sargam/Participation`) to display names. The `templates` DB table is kept in sync via this manifest — no artisan command needed. Files prefixed with `_` are ignored by the scanner.
+
+At render time, `certificates/show` and `certificates/preview` do a dynamic `import()` keyed by `templateFile` to load the correct component. Public certificates (`/certificate/{no}`) only show participants with `status = 'active'`.
+
+### Code style (project-specific)
+
+- Tailwind v4 — no `tailwind.config.*`. All customisation is in `resources/css/app.css` via CSS variables (OKLch). Use semantic classes (`bg-card`, `text-muted-foreground`) not hardcoded values.
+- Path alias `@/` → `resources/js/`.
+- `StatCard` (`@/components/ui/stat-card`) is the standard stat display component.
+- Wayfinder generates typed route helpers into `@/routes` and `@/actions` at build time — prefer those over string URLs.
+
+### Constraints
+
+- The `.env` file must never be read or modified.
+

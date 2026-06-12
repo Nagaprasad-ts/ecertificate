@@ -11,11 +11,12 @@ return new class extends Migration
         Schema::create('import_batches', function (Blueprint $table) {
             $table->uuid('batch_id')->primary();
             $table->foreignId('event_id')->constrained()->cascadeOnDelete();
+            $table->unsignedBigInteger('event_edition_id')->nullable(); // FK to event_editions — constrained after that table exists
             $table->foreignId('template_id')->constrained()->cascadeOnDelete();
             $table->foreignId('imported_by')->constrained('users')->cascadeOnDelete();
             $table->integer('participant_count')->default(0);
             $table->integer('failed_count')->default(0);
-            // Admin sets this window to authorize email sending
+            $table->json('failures')->nullable();
             $table->timestamp('email_window_from')->nullable();
             $table->timestamp('email_window_to')->nullable();
             $table->timestamps();

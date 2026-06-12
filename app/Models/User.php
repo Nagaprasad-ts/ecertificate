@@ -39,16 +39,4 @@ class User extends Authenticatable
         return $this->role?->permissions->contains('slug', $permission) ?? false;
     }
 
-    // Check if user has any of the given permission slugs
-    public function hasAnyPermission(string ...$permissions): bool
-    {
-        if (! $this->role) {
-            return false;
-        }
-
-        $slugs = $this->role->permissions->pluck('slug');
-
-        return collect($permissions)->some(fn ($p) => $slugs->contains($p));
-    }
-
 }

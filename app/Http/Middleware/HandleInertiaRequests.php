@@ -42,8 +42,9 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user'        => $user,
-                'permissions' => $user?->role?->permissions->pluck('slug') ?? [],
+                'user'          => $user,
+                'permissions'   => $user?->role?->permissions->pluck('slug') ?? [],
+                'is_super_admin' => $user?->role?->slug === 'super_admin',
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

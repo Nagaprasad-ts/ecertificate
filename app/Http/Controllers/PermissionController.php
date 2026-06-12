@@ -26,13 +26,39 @@ class PermissionController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'max:255', 'unique:permissions,slug', 'regex:/^[a-z_]+\.[a-z_]+$/'],
+            'slug' => ['required', 'string', 'max:255', 'unique:permissions,slug', 'regex:/^[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*$/'],
             'page' => ['required', 'string', 'max:100'],
         ]);
+
+        $data['page'] = str()->headline($data['page']);
 
         Permission::create($data);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Permission created successfully.']);
+
+        return to_route('admin.permissions.index');
+    }
+
+    public function edit(Permission $permission): Response
+    {
+        return Inertia::render('admin/permissions/edit', [
+            'permission' => $permission->only('id', 'name', 'slug', 'page'),
+        ]);
+    }
+
+    public function update(Request $request, Permission $permission): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['required', 'string', 'max:255', 'unique:permissions,slug,' . $permission->id, 'regex:/^[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*$/'],
+            'page' => ['required', 'string', 'max:100'],
+        ]);
+
+        $data['page'] = str()->headline($data['page']);
+
+        $permission->update($data);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Permission updated successfully.']);
 
         return to_route('admin.permissions.index');
     }

@@ -5,11 +5,23 @@ namespace App\Http\Controllers;
 use App\Models\Template;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class TemplateController extends Controller
+class TemplateController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:templates.read',   only: ['index', 'show']),
+            new Middleware('permission:templates.create', only: ['create', 'store']),
+            new Middleware('permission:templates.update', only: ['edit', 'update']),
+            new Middleware('permission:templates.delete', only: ['destroy', 'bulkDestroy']),
+        ];
+    }
+
     public function index(): Response
     {
         return Inertia::render('templates/index', [

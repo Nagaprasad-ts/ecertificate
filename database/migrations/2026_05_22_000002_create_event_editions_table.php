@@ -12,7 +12,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('event_id')->constrained()->cascadeOnDelete();
             $table->unsignedSmallInteger('year');
-            $table->foreignId('template_id')->nullable()->constrained()->cascadeOnDelete();
             $table->timestamps();
 
             $table->unique(['event_id', 'year']);

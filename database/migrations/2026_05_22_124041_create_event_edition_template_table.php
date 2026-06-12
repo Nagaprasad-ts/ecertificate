@@ -14,19 +14,10 @@ return new class extends Migration
             $table->primary(['event_edition_id', 'template_id']);
         });
 
-        // Drop the now-redundant single template_id column from event_editions
-        Schema::table('event_editions', function (Blueprint $table) {
-            $table->dropForeign(['template_id']);
-            $table->dropColumn('template_id');
-        });
     }
 
     public function down(): void
     {
         Schema::dropIfExists('event_edition_template');
-
-        Schema::table('event_editions', function (Blueprint $table) {
-            $table->foreignId('template_id')->nullable()->constrained()->cascadeOnDelete();
-        });
     }
 };

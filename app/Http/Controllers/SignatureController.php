@@ -5,12 +5,24 @@ namespace App\Http\Controllers;
 use App\Models\Signature;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class SignatureController extends Controller
+class SignatureController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:signatures.read',   only: ['index', 'show']),
+            new Middleware('permission:signatures.create', only: ['create', 'store']),
+            new Middleware('permission:signatures.update', only: ['edit', 'update']),
+            new Middleware('permission:signatures.delete', only: ['destroy', 'bulkDestroy']),
+        ];
+    }
+
     public function index(): Response
     {
         return Inertia::render('signatures/index', [

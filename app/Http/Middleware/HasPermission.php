@@ -15,7 +15,13 @@ class HasPermission
      */
     public function handle(Request $request, Closure $next, string $permission): Response
     {
-        if (! $request->user()?->hasPermission($permission)) {
+        $user = $request->user()?->loadMissing('role.permissions');
+
+        if ($user?->role?->slug === 'super_admin') {
+            return $next($request);
+        }
+
+        if (! $user?->hasPermission($permission)) {
             abort(403, 'You do not have permission to perform this action.');
         }
 

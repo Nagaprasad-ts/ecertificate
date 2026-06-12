@@ -10,11 +10,9 @@ return new class extends Migration
     {
         Schema::create('events', function (Blueprint $table) {
             $table->id();
-            $table->string('event_name');
-            $table->unsignedSmallInteger('year');
+            $table->string('event_name')->unique();
+            $table->string('logo')->nullable();
             $table->timestamps();
-
-            $table->unique(['event_name', 'year']);
         });
     }
 

@@ -1,6 +1,6 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { CalendarDays, LayoutGrid, LayoutList, Pencil, Plus, Search, Settings2, Trash2, Users, X } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
 
 import InputError from '@/components/input-error';
 import { MultiSelect } from '@/components/multi-select';
@@ -9,11 +9,15 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+type LogoData = { id: number; logo_name: string; logo: string };
+
 type Edition = {
     id: number;
     year: number;
     template_ids: number[];
     template_names: string[];
+    logo_ids: number[];
+    logos: LogoData[];
     participants_count: number;
 };
 
@@ -36,10 +40,10 @@ const VIEW_KEY = 'editions-view';
 
 export default function EventsShow({ event, templates }: Props) {
     const [deletingEdition, setDeletingEdition] = useState<Edition | null>(null);
-    const [editingEdition, setEditingEdition] = useState<Edition | null>(null);
+    const [editingEdition, setEditingEdition]   = useState<Edition | null>(null);
     const [editTemplateIds, setEditTemplateIds] = useState<number[]>([]);
-    const [editProcessing, setEditProcessing] = useState(false);
-    const [showForm, setShowForm] = useState(false);
+    const [editProcessing, setEditProcessing]   = useState(false);
+    const [showForm, setShowForm]               = useState(false);
 
     function openEditEdition(ed: Edition) {
         setEditingEdition(ed);
@@ -55,9 +59,10 @@ export default function EventsShow({ event, templates }: Props) {
             { onFinish: () => { setEditProcessing(false); setEditingEdition(null); } },
         );
     }
+
     const [search, setSearch] = useState('');
     const [view, setView]     = useState<'grid' | 'list'>(() =>
-        (localStorage.getItem(VIEW_KEY) as 'grid' | 'list') ?? 'grid',
+        (localStorage.getItem(VIEW_KEY) as 'grid' | 'list') ?? 'list',
     );
 
     function switchView(v: 'grid' | 'list') {
@@ -65,7 +70,7 @@ export default function EventsShow({ event, templates }: Props) {
         localStorage.setItem(VIEW_KEY, v);
     }
 
-    const q              = search.trim().toLowerCase();
+    const q               = search.trim().toLowerCase();
     const visibleEditions = q
         ? event.editions.filter((ed) =>
             String(ed.year).includes(q) ||
@@ -81,7 +86,7 @@ export default function EventsShow({ event, templates }: Props) {
 
     const templateOptions = templates.map((t) => ({ value: t.id, label: t.name }));
 
-    function submitEdition(e: FormEvent) {
+    function submitEdition(e: React.SyntheticEvent) {
         e.preventDefault();
         post(`/events/${event.id}/editions`, {
             onSuccess: () => { reset(); setShowForm(false); },
@@ -149,34 +154,35 @@ export default function EventsShow({ event, templates }: Props) {
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
-                        <form onSubmit={submitEdition} className="flex flex-wrap items-end gap-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="year">Year <span className="text-destructive">*</span></Label>
-                                <Input
-                                    id="year"
-                                    type="number"
-                                    min={2000}
-                                    max={2100}
-                                    className="w-28"
-                                    value={data.year}
-                                    onChange={(e) => setData('year', Number(e.target.value))}
-                                    required
-                                />
-                                <InputError message={errors.year} />
+                        <form onSubmit={submitEdition} className="space-y-4">
+                            <div className="grid grid-cols-[7rem_1fr] gap-4">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="year">Year <span className="text-destructive">*</span></Label>
+                                    <Input
+                                        id="year"
+                                        type="number"
+                                        min={2000}
+                                        max={2100}
+                                        value={data.year}
+                                        onChange={(e) => setData('year', Number(e.target.value))}
+                                        required
+                                    />
+                                    <InputError message={errors.year} />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label>Templates <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                                    <MultiSelect
+                                        options={templateOptions}
+                                        selected={data.template_ids}
+                                        onChange={(ids) => setData('template_ids', ids)}
+                                        placeholder="Select templates…"
+                                    />
+                                    <InputError message={errors.template_ids} />
+                                </div>
                             </div>
 
-                            <div className="w-72 space-y-1.5">
-                                <Label>Templates <span className="text-xs text-muted-foreground">(optional)</span></Label>
-                                <MultiSelect
-                                    options={templateOptions}
-                                    selected={data.template_ids}
-                                    onChange={(ids) => setData('template_ids', ids)}
-                                    placeholder="Select templates…"
-                                />
-                                <InputError message={errors.template_ids} />
-                            </div>
-
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 pt-1">
                                 <Button type="submit" disabled={processing}>
                                     {processing ? 'Adding…' : 'Add Edition'}
                                 </Button>
@@ -195,7 +201,6 @@ export default function EventsShow({ event, templates }: Props) {
                     <div className="flex flex-wrap items-center gap-3">
                         <h2 className="text-lg font-semibold">Editions</h2>
                         <div className="ml-auto flex items-center gap-2">
-                            {/* Search */}
                             <div className="relative">
                                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
@@ -214,8 +219,6 @@ export default function EventsShow({ event, templates }: Props) {
                                     </button>
                                 )}
                             </div>
-
-                            {/* View toggle */}
                             <div className="flex overflow-hidden rounded-md border">
                                 <button
                                     type="button"
@@ -247,35 +250,41 @@ export default function EventsShow({ event, templates }: Props) {
                             No editions match <strong>"{search}"</strong>.
                         </p>
                     ) : view === 'grid' ? (
-                        /* Grid view */
+                        /* ── Grid view ── */
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                             {visibleEditions.map((ed) => (
-                                <div
-                                    key={ed.id}
-                                    className="relative flex flex-col gap-3 rounded-xl border bg-card p-5 shadow-sm"
-                                >
+                                <div key={ed.id} className="relative flex flex-col gap-3 rounded-xl border bg-card p-5 shadow-sm">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <CalendarDays className="h-4 w-4 text-muted-foreground" />
                                             <span className="text-lg font-bold">{ed.year}</span>
                                         </div>
                                         <div className="flex items-center gap-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => openEditEdition(ed)}
-                                                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                            >
+                                            <button type="button" onClick={() => openEditEdition(ed)}
+                                                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
                                                 <Settings2 className="h-4 w-4" />
                                             </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeletingEdition(ed)}
-                                                className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                            >
+                                            <button type="button" onClick={() => setDeletingEdition(ed)}
+                                                className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                                                 <Trash2 className="h-4 w-4" />
                                             </button>
                                         </div>
                                     </div>
+
+                                    {/* Logo thumbnails */}
+                                    {ed.logos.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {ed.logos.map((l) => (
+                                                <img
+                                                    key={l.id}
+                                                    src={`/storage/${l.logo}`}
+                                                    alt={l.logo_name}
+                                                    title={l.logo_name}
+                                                    className="h-8 w-8 rounded border bg-muted object-contain p-0.5"
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
 
                                     <div className="space-y-2 text-sm text-muted-foreground">
                                         <div className="flex flex-wrap gap-1">
@@ -283,10 +292,7 @@ export default function EventsShow({ event, templates }: Props) {
                                                 <span className="text-xs">No templates</span>
                                             ) : (
                                                 ed.template_names.map((name) => (
-                                                    <span
-                                                        key={name}
-                                                        className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
-                                                    >
+                                                    <span key={name} className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                                                         {name}
                                                     </span>
                                                 ))
@@ -299,20 +305,19 @@ export default function EventsShow({ event, templates }: Props) {
                                     </div>
 
                                     <Button size="sm" variant="outline" asChild className="mt-auto">
-                                        <Link href={`/participants?event_edition_id=${ed.id}`}>
-                                            Manage Participants
-                                        </Link>
+                                        <Link href={`/participants?event_edition_id=${ed.id}`}>Manage Participants</Link>
                                     </Button>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        /* List view */
+                        /* ── List view ── */
                         <div className="rounded-md border">
                             <table className="w-full text-sm">
                                 <thead className="border-b bg-muted/50">
                                     <tr>
                                         <th className="px-4 py-3 text-left font-medium">Year</th>
+                                        <th className="px-4 py-3 text-left font-medium">Logos</th>
                                         <th className="px-4 py-3 text-left font-medium">Templates</th>
                                         <th className="px-4 py-3 text-left font-medium">Participants</th>
                                         <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -322,6 +327,23 @@ export default function EventsShow({ event, templates }: Props) {
                                     {visibleEditions.map((ed) => (
                                         <tr key={ed.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                                             <td className="px-4 py-3 font-bold">{ed.year}</td>
+                                            <td className="px-4 py-3">
+                                                {ed.logos.length === 0 ? (
+                                                    <span className="text-xs text-muted-foreground">—</span>
+                                                ) : (
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {ed.logos.map((l) => (
+                                                            <img
+                                                                key={l.id}
+                                                                src={`/storage/${l.logo}`}
+                                                                alt={l.logo_name}
+                                                                title={l.logo_name}
+                                                                className="h-7 w-7 rounded border bg-muted object-contain p-0.5"
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex flex-wrap gap-1">
                                                     {ed.template_names.length === 0 ? (
@@ -344,22 +366,12 @@ export default function EventsShow({ event, templates }: Props) {
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <Button size="sm" variant="outline" asChild>
-                                                        <Link href={`/participants?event_edition_id=${ed.id}`}>
-                                                            Manage
-                                                        </Link>
+                                                        <Link href={`/participants?event_edition_id=${ed.id}`}>Manage</Link>
                                                     </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => openEditEdition(ed)}
-                                                    >
+                                                    <Button size="sm" variant="outline" onClick={() => openEditEdition(ed)}>
                                                         <Settings2 className="h-3.5 w-3.5" />
                                                     </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="destructive"
-                                                        onClick={() => setDeletingEdition(ed)}
-                                                    >
+                                                    <Button size="sm" variant="destructive" onClick={() => setDeletingEdition(ed)}>
                                                         <Trash2 className="h-3.5 w-3.5" />
                                                     </Button>
                                                 </div>
@@ -371,23 +383,25 @@ export default function EventsShow({ event, templates }: Props) {
                         </div>
                     )}
                 </div>
-
             </div>
 
-            {/* Edit edition templates dialog */}
+            {/* ── Edit edition dialog ── */}
             <Dialog open={!!editingEdition} onOpenChange={() => setEditingEdition(null)}>
-                <DialogContent>
+                <DialogContent className="max-w-lg">
                     <DialogHeader>
                         <DialogTitle>Edit Edition {editingEdition?.year}</DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-1.5 py-2">
-                        <Label>Templates <span className="text-xs text-muted-foreground">(optional)</span></Label>
-                        <MultiSelect
-                            options={templateOptions}
-                            selected={editTemplateIds}
-                            onChange={setEditTemplateIds}
-                            placeholder="Select templates…"
-                        />
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-1.5">
+                            <Label>Templates <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                            <MultiSelect
+                                options={templateOptions}
+                                selected={editTemplateIds}
+                                onChange={setEditTemplateIds}
+                                placeholder="Select templates…"
+                            />
+                        </div>
+
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setEditingEdition(null)}>Cancel</Button>
@@ -398,7 +412,7 @@ export default function EventsShow({ event, templates }: Props) {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete edition dialog */}
+            {/* ── Delete edition dialog ── */}
             <Dialog open={!!deletingEdition} onOpenChange={() => setDeletingEdition(null)}>
                 <DialogContent>
                     <DialogHeader><DialogTitle>Delete Edition {deletingEdition?.year}?</DialogTitle></DialogHeader>

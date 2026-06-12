@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { FormEvent } from 'react';
+import type { SyntheticEvent } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -19,7 +19,7 @@ type Props = {
     processing: boolean;
     permissions: Record<string, Permission[]>;
     submitLabel: string;
-    onSubmit: (e: FormEvent) => void;
+    onSubmit: (e: SyntheticEvent) => void;
     onChange: (key: keyof RoleFormData, value: any) => void;
 };
 
@@ -37,8 +37,9 @@ function togglePage(ids: number[], pagePerms: Permission[]) {
 
 export default function RoleForm({ data, errors, processing, permissions, submitLabel, onSubmit, onChange }: Props) {
     return (
-        <form onSubmit={onSubmit} className="space-y-6 max-w-2xl">
-            <div className="space-y-1">
+        <form onSubmit={onSubmit} className="space-y-6">
+            {/* Role name — keep input narrow for readability */}
+            <div className="max-w-sm space-y-1">
                 <Label htmlFor="name">Role Name</Label>
                 <Input
                     id="name"
@@ -49,42 +50,48 @@ export default function RoleForm({ data, errors, processing, permissions, submit
                 <InputError message={errors.name} />
             </div>
 
+            {/* Permissions — full-width grid of page cards */}
             <div className="space-y-3">
                 <Label className="text-base font-medium">Permissions</Label>
                 <InputError message={errors.permission_ids} />
 
-                {Object.entries(permissions).map(([page, perms]) => {
-                    const pageIds = perms.map((p) => p.id);
-                    const allSelected = pageIds.every((id) => data.permission_ids.includes(id));
-                    const someSelected = pageIds.some((id) => data.permission_ids.includes(id));
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {Object.entries(permissions).map(([page, perms]) => {
+                        const pageIds = perms.map((p) => p.id);
+                        const allSelected = pageIds.every((id) => data.permission_ids.includes(id));
+                        const someSelected = pageIds.some((id) => data.permission_ids.includes(id));
 
-                    return (
-                        <div key={page} className="rounded-md border p-3">
-                            <div className="mb-2 flex items-center gap-2">
-                                <Checkbox
-                                    id={`page-${page}`}
-                                    checked={allSelected}
-                                    ref={(el) => { if (el) (el as any).indeterminate = !allSelected && someSelected; }}
-                                    onCheckedChange={() => onChange('permission_ids', togglePage(data.permission_ids, perms))}
-                                />
-                                <label htmlFor={`page-${page}`} className="cursor-pointer text-sm font-semibold capitalize">
-                                    {page}
-                                </label>
-                            </div>
-                            <div className="ml-6 grid grid-cols-2 gap-1 sm:grid-cols-4">
-                                {perms.map((perm) => (
-                                    <label key={perm.id} className="flex cursor-pointer items-center gap-2 rounded p-1 hover:bg-muted/50">
-                                        <Checkbox
-                                            checked={data.permission_ids.includes(perm.id)}
-                                            onCheckedChange={() => onChange('permission_ids', toggleId(data.permission_ids, perm.id))}
-                                        />
-                                        <span className="text-xs capitalize">{perm.slug.split('.')[1]}</span>
+                        return (
+                            <div key={page} className="rounded-md border p-3">
+                                {/* Page header + select-all checkbox */}
+                                <div className="mb-2 flex items-center gap-2">
+                                    <Checkbox
+                                        id={`page-${page}`}
+                                        checked={allSelected}
+                                        ref={(el) => { if (el) (el as any).indeterminate = !allSelected && someSelected; }}
+                                        onCheckedChange={() => onChange('permission_ids', togglePage(data.permission_ids, perms))}
+                                    />
+                                    <label htmlFor={`page-${page}`} className="cursor-pointer text-sm font-semibold capitalize">
+                                        {page}
                                     </label>
-                                ))}
+                                </div>
+
+                                {/* Individual permission checkboxes */}
+                                <div className="ml-6 grid grid-cols-2 gap-1">
+                                    {perms.map((perm) => (
+                                        <label key={perm.id} className="flex cursor-pointer items-center gap-2 rounded p-1 hover:bg-muted/50">
+                                            <Checkbox
+                                                checked={data.permission_ids.includes(perm.id)}
+                                                onCheckedChange={() => onChange('permission_ids', toggleId(data.permission_ids, perm.id))}
+                                            />
+                                            <span className="text-xs capitalize">{perm.slug.split('.')[1]}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
 
             <div className="flex gap-3 pt-2">

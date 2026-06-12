@@ -10,22 +10,20 @@ type TemplateImporter = () => Promise<{ default: ComponentType<CertificateProps>
 type Props = CertificateProps & { templateFile: string };
 
 export default function CertificatePreview({ templateFile, participant, event, logos, signatures }: Props) {
-    const [Template, setTemplate] = useState<ComponentType<CertificateProps> | null>(null);
+    const [loaded, setLoaded] = useState<{ file: string; Component: ComponentType<CertificateProps> } | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
         const key = `/resources/js/certificate-templates/${templateFile}.tsx`;
         const importer = modules[key] as TemplateImporter | undefined;
-
-        if (!importer) {
-            console.error(`Template not found: ${key}`);
-            
-            return;
-        }
-
+        if (!importer) { console.error(`Template not found: ${key}`); return; }
         void importer()
-            .then((mod) => setTemplate(() => mod.default))
+            .then((mod) => { if (!cancelled) setLoaded({ file: templateFile, Component: mod.default }); })
             .catch((err: unknown) => console.error('Template load failed:', err));
+        return () => { cancelled = true; };
     }, [templateFile]);
+
+    const Template = loaded?.file === templateFile ? loaded.Component : null;
 
     if (!Template) {
         return (

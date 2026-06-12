@@ -10,18 +10,17 @@ return new class extends Migration
     {
         Schema::create('participants', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('event_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('event_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->unsignedBigInteger('event_edition_id')->nullable(); // FK to event_editions — constrained after that table exists
             $table->foreignId('template_id')->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->string('email');
             $table->string('usn')->nullable();
             $table->string('phone_no')->nullable();
-            // format: {event_name}-{year}-{hex} e.g. hackathon-2026-1a2b3c
             $table->string('certificate_no')->unique();
-            $table->json('data')->nullable(); // extra fields from Excel as JSON
-            // pending = imported but email not sent yet; active = confirmed
+            $table->json('data')->nullable();
             $table->string('status')->default('active');
-            $table->uuid('batch_id')->nullable()->index(); // groups a single import run
+            $table->uuid('batch_id')->nullable()->index();
             $table->timestamps();
 
             $table->index(['event_id', 'email']);

@@ -16,15 +16,18 @@ class ImportBatch extends Model
     protected $fillable = [
         'batch_id',
         'event_id',
+        'event_edition_id',
         'template_id',
         'imported_by',
         'participant_count',
         'failed_count',
+        'failures',
         'email_window_from',
         'email_window_to',
     ];
 
     protected $casts = [
+        'failures'          => 'array',
         'email_window_from' => 'datetime',
         'email_window_to'   => 'datetime',
     ];
@@ -32,6 +35,16 @@ class ImportBatch extends Model
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function edition(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\EventEdition::class, 'event_edition_id');
+    }
+
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Template::class);
     }
 
     public function importedBy(): BelongsTo

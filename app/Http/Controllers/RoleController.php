@@ -58,6 +58,10 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role): RedirectResponse
     {
+        if ($role->slug === 'super_admin') {
+            return back()->withErrors(['role' => 'The Super Admin role cannot be modified.']);
+        }
+
         $data = $request->validate([
             'name'             => ['required', 'string', 'max:255', 'unique:roles,name,' . $role->id],
             'permission_ids'   => ['nullable', 'array'],
@@ -66,7 +70,6 @@ class RoleController extends Controller
 
         $role->update([
             'name' => $data['name'],
-            'slug' => Str::slug($data['name']),
         ]);
 
         $role->permissions()->sync($data['permission_ids'] ?? []);
@@ -78,6 +81,10 @@ class RoleController extends Controller
 
     public function destroy(Role $role): RedirectResponse
     {
+        if ($role->slug === 'super_admin') {
+            return back()->withErrors(['role' => 'The Super Admin role cannot be deleted.']);
+        }
+
         if ($role->users()->exists()) {
             return back()->withErrors(['role' => 'Cannot delete a role that has users assigned to it.']);
         }

@@ -3,21 +3,36 @@
 namespace App\Http\Controllers;
 
 use App\Imports\ParticipantsImport;
+use App\Models\Event;
 use App\Models\EventEdition;
 use App\Models\ImportBatch;
 use App\Models\Participant;
 use App\Models\Template;
-use App\Services\GraphMailService;
+use App\Jobs\SendCertificateEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
 
-class ParticipantController extends Controller
+class ParticipantController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:participants.read',   only: ['index']),
+            new Middleware('permission:participants.create', only: ['create', 'store']),
+            new Middleware('permission:participants.update', only: ['edit', 'update']),
+            new Middleware('permission:participants.delete', only: ['destroy', 'bulkDestroy', 'deleteAll']),
+            new Middleware('permission:participants.import', only: ['importForm', 'import', 'importResults', 'confirmImport', 'discardImport', 'reImport']),
+            // batches.view-all / batches.set-window / batches.delete are applied at the route level
+        ];
+    }
+
     /**
      * Eager-load edition.event so we can show "EventName — Year" on the index.
      */
@@ -25,9 +40,10 @@ class ParticipantController extends Controller
     {
         $participants = Participant::with('edition.event')
             ->active()
-            ->when(
-                $request->event_edition_id,
-                fn ($q) => $q->where('event_edition_id', $request->event_edition_id),
+            // Specific edition filter takes precedence over event-level filter
+            ->when($request->event_edition_id, fn ($q) => $q->where('event_edition_id', $request->event_edition_id))
+            ->when($request->event_id && ! $request->event_edition_id,
+                fn ($q) => $q->whereHas('edition', fn ($eq) => $eq->where('event_id', $request->event_id))
             )
             ->when($request->search, fn ($q) => $q->where(function ($inner) use ($request) {
                 $inner->where('name', 'like', "%{$request->search}%")
@@ -73,8 +89,8 @@ class ParticipantController extends Controller
 
         return Inertia::render('participants/index', [
             'participants'      => $participants,
-            'editions'          => $this->editionOptions(),
-            'filters'           => $request->only('event_edition_id', 'search'),
+            'events'            => $this->eventOptions(),
+            'filters'           => $request->only('event_id', 'event_edition_id', 'search'),
             'pendingBatches'    => $pendingBatches,
             'pendingBatchCount' => $pendingBatchCount,
         ]);
@@ -101,6 +117,7 @@ class ParticipantController extends Controller
 
         /** @var EventEdition $edition */
         $edition = EventEdition::with('event')->findOrFail($data['event_edition_id']);
+        $data['event_id']       = $edition->event_id;
         $data['certificate_no'] = Participant::generateCertificateNo($edition);
         $data['status']         = 'active';
 
@@ -184,7 +201,7 @@ class ParticipantController extends Controller
     public function importForm(): Response
     {
         return Inertia::render('participants/import', [
-            'editions'  => $this->editionOptions(),
+            'events'    => $this->eventOptions(),
             'templates' => Template::select('id', 'name')->get(),
         ]);
     }
@@ -202,10 +219,11 @@ class ParticipantController extends Controller
         $batchId = (string) Str::uuid();
 
         ImportBatch::create([
-            'batch_id'    => $batchId,
-            'event_id'    => $edition->event_id,
-            'template_id' => (int) $request->template_id,
-            'imported_by' => Auth::id(),
+            'batch_id'         => $batchId,
+            'event_id'         => $edition->event_id,
+            'event_edition_id' => $edition->id,
+            'template_id'      => (int) $request->template_id,
+            'imported_by'      => Auth::id(),
         ]);
 
         $import = new ParticipantsImport(
@@ -222,9 +240,8 @@ class ParticipantController extends Controller
         ImportBatch::where('batch_id', $batchId)->update([
             'participant_count' => $import->count(),
             'failed_count'      => count($import->failures()),
+            'failures'          => $import->failures(),
         ]);
-
-        session()->flash("import_failures_{$batchId}", $import->failures());
 
         return redirect()->route('participants.import.results', ['batchId' => $batchId]);
     }
@@ -245,9 +262,9 @@ class ParticipantController extends Controller
                 'certificate_no' => $p->certificate_no,
             ]);
 
-        $failures = session("import_failures_{$batchId}", []);
+        $failures = $batch?->failures ?? [];
 
-        if (! $batch && $pending->isEmpty() && empty($failures)) {
+        if (! $batch && $pending->isEmpty()) {
             return Inertia::render('participants/import-results', [
                 'batchId'  => $batchId,
                 'imported' => [],
@@ -281,6 +298,50 @@ class ParticipantController extends Controller
         ]);
     }
 
+    public function reImport(Request $request, string $batchId): RedirectResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+        ]);
+
+        $batch = ImportBatch::findOrFail($batchId);
+
+        // Derive the edition from the existing pending rows (they all share the same edition)
+        $editionId = Participant::pending()->where('batch_id', $batchId)->value('event_edition_id');
+
+        if (! $editionId) {
+            return back()->withErrors(['file' => 'No pending rows found for this batch.']);
+        }
+
+        /** @var \App\Models\EventEdition $edition */
+        $edition = \App\Models\EventEdition::with('event')->findOrFail($editionId);
+
+        // Wipe all existing pending participants for this batch
+        Participant::pending()->where('batch_id', $batchId)->delete();
+
+        // Re-run the import under the same batch_id
+        $import = new ParticipantsImport(
+            (int) $editionId,
+            (int) $batch->template_id,
+            $edition,
+            $batchId,
+        );
+
+        /** @var \Illuminate\Http\UploadedFile $uploadedFile */
+        $uploadedFile = $request->file('file');
+        Excel::import($import, $uploadedFile);
+
+        $batch->update([
+            'participant_count' => $import->count(),
+            'failed_count'      => count($import->failures()),
+            'failures'          => $import->failures(),
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'File re-uploaded. Review the updated results below.']);
+
+        return redirect()->route('participants.import.results', ['batchId' => $batchId]);
+    }
+
     public function setEmailWindow(Request $request, string $batchId): RedirectResponse
     {
         $data = $request->validate([
@@ -289,6 +350,13 @@ class ParticipantController extends Controller
         ]);
 
         $batch = ImportBatch::findOrFail($batchId);
+
+        if ($batch->failed_count > 0) {
+            return back()->withErrors([
+                'email_window_from' => "Cannot set a send window while {$batch->failed_count} row(s) have failed validation. Fix them first.",
+            ]);
+        }
+
         $batch->update([
             'email_window_from' => $data['email_window_from'],
             'email_window_to'   => $data['email_window_to'],
@@ -299,70 +367,35 @@ class ParticipantController extends Controller
         return redirect()->route('participants.import.results', ['batchId' => $batchId]);
     }
 
-    public function confirmImport(string $batchId, GraphMailService $mailer): RedirectResponse
+    public function confirmImport(string $batchId): RedirectResponse
     {
-        set_time_limit(300);
-
-        /** @var ImportBatch|null $batch */
         $batch = ImportBatch::find($batchId);
 
         if (! $batch instanceof ImportBatch) {
             Inertia::flash('toast', ['type' => 'error', 'message' => 'Import batch not found.']);
+
             return to_route('participants.index');
         }
 
         if (! $batch->isEmailWindowActive()) {
             Inertia::flash('toast', ['type' => 'error', 'message' => 'Email sending is not authorized at this time. Contact your administrator.']);
-            return redirect()->route('participants.import.results', ['batchId' => $batchId]);
-        }
-
-        $participants = Participant::pending()
-            ->where('batch_id', $batchId)
-            ->with('edition.event')
-            ->get();
-
-        $count = $participants->count();
-
-        $messages = $participants->map(function ($p) {
-            $eventName      = $p->edition?->event?->event_name ?? 'Event';
-            $year           = $p->edition?->year ?? '';
-            $eventLabel     = trim("{$eventName} {$year}");
-            $certificateUrl = url('/certificate/' . $p->certificate_no);
-
-            $html = view('emails.certificate-issued', [
-                'participantName' => $p->name,
-                'eventLabel'      => $eventLabel,
-                'certificateNo'   => $p->certificate_no,
-                'certificateUrl'  => $certificateUrl,
-                'fromName'        => config('mail.from.name'),
-            ])->render();
-
-            return [
-                'to_address' => $p->email,
-                'to_name'    => $p->name,
-                'subject'    => "Your Certificate — {$eventLabel}",
-                'html'       => $html,
-            ];
-        })->all();
-
-        try {
-            $mailer->sendBatch($messages);
-        } catch (\Throwable $e) {
-            Inertia::flash('toast', [
-                'type'    => 'error',
-                'message' => 'Email sending failed: ' . $e->getMessage(),
-            ]);
 
             return redirect()->route('participants.import.results', ['batchId' => $batchId]);
         }
 
-        Participant::pending()
-            ->where('batch_id', $batchId)
-            ->update(['status' => 'active']);
+        $participants = Participant::pending()->where('batch_id', $batchId)->get();
+        $count        = $participants->count();
+
+        // Flip to active immediately — each job handles sending + logging
+        Participant::pending()->where('batch_id', $batchId)->update(['status' => 'active']);
+
+        foreach ($participants as $p) {
+            SendCertificateEmail::dispatch($p, $batchId);
+        }
 
         Inertia::flash('toast', [
             'type'    => 'success',
-            'message' => "{$count} certificate(s) sent successfully.",
+            'message' => "{$count} certificate email(s) queued for delivery. Track progress in Email Logs.",
         ]);
 
         return to_route('participants.index');
@@ -400,21 +433,20 @@ class ParticipantController extends Controller
 
     public function importBatchesAdmin(): Response
     {
-        $batches = ImportBatch::with(['event', 'importedBy'])
-            ->whereIn('batch_id', function ($q) {
-                $q->select('batch_id')->from('participants')->where('status', 'pending')->whereNotNull('batch_id');
-            })
+        $batches = ImportBatch::with(['event', 'edition', 'template', 'importedBy'])
             ->latest()
             ->get()
             ->map(fn ($b) => [
                 'batch_id'          => $b->batch_id,
-                'event_name'        => $b->event?->event_name,
-                'event_year'        => null, // year now lives on edition; left null for back-compat
-                'imported_by_name'  => $b->importedBy?->name,
-                'imported_by_email' => $b->importedBy?->email,
+                'event_name'        => $b->event?->event_name ?? '—',
+                'event_year'        => $b->edition?->year,
+                'template_name'     => $b->template?->name ?? '—',
+                'imported_by_name'  => $b->importedBy?->name ?? '—',
+                'imported_by_email' => $b->importedBy?->email ?? '—',
                 'participant_count' => $b->participant_count,
                 'failed_count'      => $b->failed_count,
                 'imported_at'       => $b->created_at->toIso8601String(),
+                'updated_at'        => $b->updated_at->toIso8601String(),
                 'email_window_from' => $b->email_window_from?->toIso8601String(),
                 'email_window_to'   => $b->email_window_to?->toIso8601String(),
                 'window_status'     => $b->windowStatus(),
@@ -429,8 +461,20 @@ class ParticipantController extends Controller
 
     public function search(Request $request): Response
     {
-        $editions = $this->editionOptions();
-        $results  = null;
+        // Grouped structure: Event → Editions (id, year only — no template_ids needed here)
+        $events = Event::with(['editions' => fn ($q) => $q->orderBy('year', 'desc')])
+            ->orderBy('event_name')
+            ->get()
+            ->map(fn ($e) => [
+                'id'         => $e->id,
+                'event_name' => $e->event_name,
+                'editions'   => $e->editions->map(fn ($ed) => [
+                    'id'   => $ed->id,
+                    'year' => $ed->year,
+                ])->values(),
+            ]);
+
+        $results = null;
 
         if ($request->filled('event_edition_id') && $request->filled('query')) {
             $q          = trim((string) $request->input('query'));
@@ -457,28 +501,47 @@ class ParticipantController extends Controller
         }
 
         return Inertia::render('participants/search', [
-            'editions' => $editions,
-            'results'  => $results,
-            'filters'  => $request->only('event_edition_id', 'query'),
+            'events'  => $events,
+            'results' => $results,
+            'filters' => $request->only('event_edition_id', 'query'),
         ]);
     }
 
     /**
-     * Flat list of editions with a display label, used by every dropdown.
-     *
-     * @return \Illuminate\Support\Collection<int, array{id:int, label:string, event_id:int, year:int, template_id:int|null}>
+     * Events grouped with their editions — used by the two-level filter on the index page.
      */
-    private function editionOptions()
+    private function eventOptions(): \Illuminate\Support\Collection
+    {
+        return Event::with(['editions' => fn ($q) => $q->with('templates')->orderBy('year', 'desc')])
+            ->orderBy('event_name')
+            ->get()
+            ->map(fn ($e) => [
+                'id'         => $e->id,
+                'event_name' => $e->event_name,
+                'editions'   => $e->editions->map(fn ($ed) => [
+                    'id'          => $ed->id,
+                    'year'        => $ed->year,
+                    'template_ids' => $ed->templates->pluck('id')->values()->all(),
+                ])->values()->all(),
+            ]);
+    }
+
+    /**
+     * Flat list of editions with a display label, used by form dropdowns (create / edit / import).
+     *
+     * @return \Illuminate\Support\Collection<int, array{id:int, label:string, event_id:int, year:int, template_ids:int[]}>
+     */
+    private function editionOptions(): \Illuminate\Support\Collection
     {
         return EventEdition::with('event', 'templates')
             ->get()
             ->sortBy(fn ($e) => ($e->event?->event_name ?? '') . str_pad((string) $e->year, 4, '0', STR_PAD_LEFT))
             ->values()
             ->map(fn ($ed) => [
-                'id'          => $ed->id,
-                'label'       => ($ed->event?->event_name ?? '—') . ' — ' . $ed->year,
-                'event_id'    => $ed->event_id,
-                'year'        => $ed->year,
+                'id'           => $ed->id,
+                'label'        => ($ed->event?->event_name ?? '—') . ' — ' . $ed->year,
+                'event_id'     => $ed->event_id,
+                'year'         => $ed->year,
                 'template_ids' => $ed->templates->pluck('id')->values()->all(),
             ]);
     }

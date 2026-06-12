@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { FormEvent } from 'react';
+import type { SyntheticEvent } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,7 +23,7 @@ type Props = {
     logos: Logo[];
     templates: Template[];
     submitLabel: string;
-    onSubmit: (e: FormEvent) => void;
+    onSubmit: (e: SyntheticEvent) => void;
     onChange: <K extends keyof EventFormData>(key: K, value: EventFormData[K]) => void;
 };
 

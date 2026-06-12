@@ -72,6 +72,13 @@ class UserController extends Controller
             'role_id'  => ['nullable', 'exists:roles,id'],
         ]);
 
+        $isSelf = $user->id === $request->user()->id;
+        $roleChanged = (int) ($data['role_id'] ?? 0) !== (int) $user->role_id;
+
+        if ($isSelf && $roleChanged) {
+            return back()->withErrors(['role_id' => 'You cannot change your own role.']);
+        }
+
         $user->update([
             'name'    => $data['name'],
             'email'   => $data['email'],
@@ -88,6 +95,14 @@ class UserController extends Controller
     {
         if ($user->id === $request->user()->id) {
             return back()->withErrors(['user' => 'You cannot delete your own account.']);
+        }
+
+        $user->loadMissing('role');
+        if ($user->role?->slug === 'super_admin') {
+            $superAdminCount = User::whereHas('role', fn ($q) => $q->where('slug', 'super_admin'))->count();
+            if ($superAdminCount <= 1) {
+                return back()->withErrors(['user' => 'Cannot delete the only Super Admin account.']);
+            }
         }
 
         $user->delete();

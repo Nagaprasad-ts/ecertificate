@@ -5,12 +5,24 @@ namespace App\Http\Controllers;
 use App\Models\Logo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class LogoController extends Controller
+class LogoController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:logos.read',   only: ['index', 'show']),
+            new Middleware('permission:logos.create', only: ['create', 'store']),
+            new Middleware('permission:logos.update', only: ['edit', 'update']),
+            new Middleware('permission:logos.delete', only: ['destroy', 'bulkDestroy']),
+        ];
+    }
+
     public function index(): Response
     {
         return Inertia::render('logos/index', [

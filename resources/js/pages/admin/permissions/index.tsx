@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -45,7 +45,12 @@ export default function PermissionsIndex({ permissions }: { permissions: Record<
                                             <td className="px-4 py-2 font-medium">{perm.name}</td>
                                             <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{perm.slug}</td>
                                             <td className="px-4 py-2">
-                                                <div className="flex justify-end">
+                                                <div className="flex justify-end gap-2">
+                                                    <Button variant="outline" size="sm" asChild>
+                                                        <Link href={`/admin/permissions/${perm.id}/edit`}>
+                                                            <Pencil className="h-3.5 w-3.5" />
+                                                        </Link>
+                                                    </Button>
                                                     <Button variant="destructive" size="sm" onClick={() => setDeleting(perm)}>
                                                         <Trash2 className="h-3.5 w-3.5" />
                                                     </Button>

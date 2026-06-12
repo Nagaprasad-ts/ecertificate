@@ -81,15 +81,16 @@ class ParticipantsImport implements ToCollection, WithHeadingRow
 
             Participant::create([
                 'event_edition_id' => $this->editionId,
+                'event_id'         => $this->edition->event_id,
                 'template_id'      => $this->templateId,
-                'name'           => $name,
-                'email'          => $email,
-                'usn'            => $row['usn'] ?? null,
-                'phone_no'       => $row['phone'] ?? null,
-                'certificate_no' => Participant::generateCertificateNo($this->edition),
-                'data'           => empty($extra) ? null : $extra,
-                'status'         => 'pending',
-                'batch_id'       => $this->batchId,
+                'name'             => $name,
+                'email'            => $email,
+                'usn'              => $row['usn'] ?? null,
+                'phone_no'         => $row['phone'] ?? null,
+                'certificate_no'   => Participant::generateCertificateNo($this->edition),
+                'data'             => empty($extra) ? null : $extra,
+                'status'           => 'pending',
+                'batch_id'         => $this->batchId,
             ]);
 
             $this->count++;

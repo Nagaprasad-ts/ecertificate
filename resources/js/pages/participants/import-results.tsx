@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { AlertTriangle, CalendarClock, CheckCircle2, Clock, Eye, Lock, Mail, ShieldCheck, Trash2, XCircle } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CheckCircle2, Clock, Eye, Lock, Mail, RefreshCw, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
@@ -76,6 +76,8 @@ export default function ImportResults({
         email_window_to:   toLocalInput(batch?.email_window_to ?? null),
     });
 
+    const reUploadForm = useForm<{ file: File | null }>({ file: null });
+
     const windowStatus = batch?.window_status ?? 'not_set';
     const canSend = windowStatus === 'active';
     const total = imported.length + failures.length;
@@ -97,6 +99,13 @@ export default function ImportResults({
     function handleSetWindow(e: React.FormEvent) {
         e.preventDefault();
         windowForm.post(`/participants/import/${batchId}/set-window`);
+    }
+
+    function handleReUpload(e: React.FormEvent) {
+        e.preventDefault();
+        reUploadForm.post(`/participants/import/${batchId}/re-import`, {
+            forceFormData: true,
+        });
     }
 
     if (notFound) {
@@ -164,36 +173,44 @@ export default function ImportResults({
                             <ShieldCheck className="h-4 w-4 text-primary" />
                             {windowStatus === 'not_set' ? 'Authorize email sending window' : 'Update email sending window'}
                         </div>
-                        <form onSubmit={handleSetWindow} className="flex flex-wrap items-end gap-4">
-                            <div className="space-y-1">
-                                <Label htmlFor="wf">From</Label>
-                                <Input
-                                    id="wf"
-                                    type="datetime-local"
-                                    value={windowForm.data.email_window_from}
-                                    onChange={(e) => windowForm.setData('email_window_from', e.target.value)}
-                                    className="w-56"
-                                />
-                                <InputError message={windowForm.errors.email_window_from} />
-                            </div>
-                            <div className="space-y-1">
-                                <Label htmlFor="wt">To</Label>
-                                <Input
-                                    id="wt"
-                                    type="datetime-local"
-                                    value={windowForm.data.email_window_to}
-                                    onChange={(e) => windowForm.setData('email_window_to', e.target.value)}
-                                    className="w-56"
-                                />
-                                <InputError message={windowForm.errors.email_window_to} />
-                            </div>
-                            <Button type="submit" disabled={windowForm.processing}>
-                                {windowForm.processing ? 'Saving…' : windowStatus === 'not_set' ? 'Set Window' : 'Update Window'}
-                            </Button>
-                        </form>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                            The "Send Certificates &amp; Confirm" button will only be active between these dates.
-                        </p>
+                        {failures.length > 0 ? (
+                            <p className="text-xs text-red-600 dark:text-red-400">
+                                {failures.length} row{failures.length !== 1 ? 's' : ''} failed validation — fix them before setting a send window.
+                            </p>
+                        ) : (
+                            <form onSubmit={handleSetWindow} className="flex flex-wrap items-end gap-4">
+                                <div className="space-y-1">
+                                    <Label htmlFor="wf">From</Label>
+                                    <Input
+                                        id="wf"
+                                        type="datetime-local"
+                                        value={windowForm.data.email_window_from}
+                                        onChange={(e) => windowForm.setData('email_window_from', e.target.value)}
+                                        className="w-56"
+                                    />
+                                    <InputError message={windowForm.errors.email_window_from} />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="wt">To</Label>
+                                    <Input
+                                        id="wt"
+                                        type="datetime-local"
+                                        value={windowForm.data.email_window_to}
+                                        onChange={(e) => windowForm.setData('email_window_to', e.target.value)}
+                                        className="w-56"
+                                    />
+                                    <InputError message={windowForm.errors.email_window_to} />
+                                </div>
+                                <Button type="submit" disabled={windowForm.processing}>
+                                    {windowForm.processing ? 'Saving…' : windowStatus === 'not_set' ? 'Set Window' : 'Update Window'}
+                                </Button>
+                            </form>
+                        )}
+                        {failures.length === 0 && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                                The "Send Certificates &amp; Confirm" button will only be active between these dates.
+                            </p>
+                        )}
                     </div>
                 )}
 
@@ -215,6 +232,38 @@ export default function ImportResults({
                         <p className="text-3xl font-bold text-red-700 dark:text-red-400">{failures.length}</p>
                     </div>
                 </div>
+
+                {/* ── Re-upload ───────────────────────────────────────────── */}
+                {failures.length > 0 && (
+                    <div className="mb-8 rounded-md border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/30">
+                        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
+                            <RefreshCw className="h-4 w-4" />
+                            Re-upload to fix failed rows
+                        </div>
+                        <p className="mb-3 text-xs text-amber-700 dark:text-amber-400">
+                            Upload a corrected file — all current rows in this batch will be replaced while keeping the same batch number.
+                        </p>
+                        <form onSubmit={handleReUpload} className="flex flex-wrap items-center gap-3">
+                            <input
+                                type="file"
+                                accept=".xlsx,.xls,.csv"
+                                onChange={(e) => reUploadForm.setData('file', e.target.files?.[0] ?? null)}
+                                className="text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium file:cursor-pointer"
+                            />
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                disabled={!reUploadForm.data.file || reUploadForm.processing}
+                            >
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                {reUploadForm.processing ? 'Uploading…' : 'Re-upload & Replace'}
+                            </Button>
+                        </form>
+                        {reUploadForm.errors.file && (
+                            <p className="mt-2 text-xs text-red-600 dark:text-red-400">{reUploadForm.errors.file}</p>
+                        )}
+                    </div>
+                )}
 
                 {/* ── Failed rows ─────────────────────────────────────────── */}
                 {failures.length > 0 && (

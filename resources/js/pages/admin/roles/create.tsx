@@ -1,5 +1,5 @@
 import { Head, useForm } from '@inertiajs/react';
-import { FormEvent } from 'react';
+import type { SyntheticEvent } from 'react';
 import RoleForm from './partials/RoleForm';
 
 type Permission = { id: number; name: string; slug: string; page: string };
@@ -10,7 +10,7 @@ export default function RolesCreate({ permissions }: { permissions: Record<strin
         permission_ids: [] as number[],
     });
 
-    function submit(e: FormEvent) {
+    function submit(e: SyntheticEvent) {
         e.preventDefault();
         post('/admin/roles');
     }

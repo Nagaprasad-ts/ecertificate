@@ -25,6 +25,11 @@ class EventEdition extends Model
         return $this->belongsToMany(Template::class, 'event_edition_template');
     }
 
+    public function logos(): BelongsToMany
+    {
+        return $this->belongsToMany(Logo::class, 'event_edition_logo');
+    }
+
     public function participants(): HasMany
     {
         return $this->hasMany(Participant::class, 'event_edition_id');

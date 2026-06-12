@@ -3,15 +3,28 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\Logo;
 use App\Models\Template;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class EventController extends Controller
+class EventController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:events.read',   only: ['index', 'show']),
+            new Middleware('permission:events.create', only: ['create', 'store']),
+            new Middleware('permission:events.update', only: ['edit', 'update']),
+            new Middleware('permission:events.delete', only: ['destroy', 'bulkDestroy']),
+        ];
+    }
+
     public function index(): Response
     {
         $events = Event::withCount('editions')
@@ -58,7 +71,7 @@ class EventController extends Controller
     public function show(Event $event): Response
     {
         $event->load(['editions' => function ($q) {
-            $q->with('templates')->withCount('participants')->orderBy('year', 'desc');
+            $q->with('templates', 'logos')->withCount('participants')->orderBy('year', 'desc');
         }]);
 
         return Inertia::render('events/show', [
@@ -72,10 +85,17 @@ class EventController extends Controller
                     'year'               => $ed->year,
                     'template_ids'       => $ed->templates->pluck('id'),
                     'template_names'     => $ed->templates->pluck('name'),
+                    'logo_ids'           => $ed->logos->pluck('id'),
+                    'logos'              => $ed->logos->map(fn ($l) => [
+                        'id'        => $l->id,
+                        'logo_name' => $l->logo_name,
+                        'logo'      => $l->logo,
+                    ]),
                     'participants_count' => $ed->participants_count,
                 ]),
             ],
             'templates' => Template::select('id', 'name')->orderBy('name')->get(),
+            'logos'     => Logo::select('id', 'logo_name', 'year', 'logo')->orderBy('logo_name')->get(),
         ]);
     }
 

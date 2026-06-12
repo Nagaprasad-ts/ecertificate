@@ -6,11 +6,22 @@ use App\Models\Event;
 use App\Models\EventEdition;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
-class EventEditionController extends Controller
+class EventEditionController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:editions.create', only: ['store']),
+            new Middleware('permission:editions.update', only: ['update']),
+            new Middleware('permission:editions.delete', only: ['destroy']),
+        ];
+    }
+
     public function store(Request $request, Event $event): RedirectResponse
     {
         $data = $request->validate([
@@ -20,6 +31,8 @@ class EventEditionController extends Controller
             ],
             'template_ids'   => ['nullable', 'array'],
             'template_ids.*' => ['exists:templates,id'],
+            'logo_ids'       => ['nullable', 'array'],
+            'logo_ids.*'     => ['exists:logos,id'],
         ]);
 
         $edition = $event->editions()->create(['year' => $data['year']]);
@@ -27,6 +40,8 @@ class EventEditionController extends Controller
         if (!empty($data['template_ids'])) {
             $edition->templates()->sync($data['template_ids']);
         }
+
+        $edition->logos()->sync($data['logo_ids'] ?? []);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Edition {$data['year']} added."]);
 
@@ -40,9 +55,12 @@ class EventEditionController extends Controller
         $data = $request->validate([
             'template_ids'   => ['nullable', 'array'],
             'template_ids.*' => ['exists:templates,id'],
+            'logo_ids'       => ['nullable', 'array'],
+            'logo_ids.*'     => ['exists:logos,id'],
         ]);
 
         $edition->templates()->sync($data['template_ids'] ?? []);
+        $edition->logos()->sync($data['logo_ids'] ?? []);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Edition {$edition->year} updated."]);
 
