@@ -137,29 +137,31 @@ export default function Welcome() {
 
                 {/* ── Navbar ── */}
                 <header className="sticky top-0 z-20 border-b border-border/50 bg-background/70 backdrop-blur-lg">
-                    <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-                        <div className="flex items-center gap-2.5">
-                            <img src="/apple-touch-icon.png" alt="E-Certificate" className="h-8 w-8 rounded-lg object-contain" />
-                            <span className="text-base font-bold tracking-tight">E-Certificate</span>
+                    <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
+                        <div className="flex items-center gap-2">
+                            <img src="/apple-touch-icon.png" alt="E-Certificate" className="h-7 w-7 rounded-lg object-contain sm:h-8 sm:w-8" />
+                            <span className="text-sm font-bold tracking-tight sm:text-base">E-Certificate</span>
                         </div>
-                        <nav className="flex items-center gap-4">
+                        <nav className="flex items-center gap-2 sm:gap-4">
                             <Link
                                 href="/certificate/search"
-                                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                                className="text-xs text-muted-foreground transition-colors hover:text-foreground sm:text-sm"
                             >
-                                Verify Certificate
+                                <span className="hidden sm:inline">Verify Certificate</span>
+                                <span className="sm:hidden">Verify</span>
                             </Link>
                             {auth.user ? (
                                 <Link
                                     href={dashboard()}
-                                    className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow shadow-primary/30 transition-all hover:bg-primary/90 hover:shadow-primary/50"
+                                    className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow shadow-primary/30 transition-all hover:bg-primary/90 hover:shadow-primary/50 sm:px-4 sm:text-sm"
                                 >
-                                    Go to Dashboard
+                                    <span className="hidden sm:inline">Go to Dashboard</span>
+                                    <span className="sm:hidden">Dashboard</span>
                                 </Link>
                             ) : (
                                 <Link
                                     href={login()}
-                                    className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow shadow-primary/30 transition-all hover:bg-primary/90 hover:shadow-primary/50"
+                                    className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow shadow-primary/30 transition-all hover:bg-primary/90 hover:shadow-primary/50 sm:px-4 sm:text-sm"
                                 >
                                     Log in
                                 </Link>

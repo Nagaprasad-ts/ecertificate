@@ -1,7 +1,7 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { FileImage, FileText } from 'lucide-react';
+import { Award, FileImage, FileText, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import type { ComponentType } from 'react';
@@ -161,36 +161,87 @@ export default function CertificateShow({ templateFile, participant, event, logo
             <Head title={`Certificate — ${participant.name}`} />
 
             {downloadError && (
-                <div className="fixed bottom-20 right-6 z-50 max-w-sm rounded-md bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700 shadow-lg print:hidden">
+                <div className="fixed bottom-20 right-4 z-50 max-w-xs rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700 shadow-lg print:hidden sm:right-6 sm:max-w-sm sm:px-4 sm:text-sm">
                     {downloadError}
                     <button onClick={() => setDownloadError(null)} className="ml-3 font-bold">✕</button>
                 </div>
             )}
 
-            <div className="fixed bottom-6 right-6 z-50 print:hidden flex gap-2">
-                <Button
-                    onClick={downloadPNG}
-                    disabled={downloading !== null}
-                    size="lg"
-                    variant="outline"
-                    className="shadow-lg gap-2"
-                >
+            {/* Desktop download buttons */}
+            <div className="fixed bottom-6 right-6 z-50 hidden gap-2 print:hidden sm:flex">
+                <Button onClick={downloadPNG} disabled={downloading !== null} size="lg" variant="outline" className="gap-2 shadow-lg">
                     <FileImage className="h-4 w-4" />
                     {downloading === 'png' ? 'Generating…' : 'Download PNG'}
                 </Button>
-                <Button
-                    onClick={downloadPDF}
-                    disabled={downloading !== null}
-                    size="lg"
-                    className="shadow-lg gap-2"
-                >
+                <Button onClick={downloadPDF} disabled={downloading !== null} size="lg" className="gap-2 shadow-lg">
                     <FileText className="h-4 w-4" />
                     {downloading === 'pdf' ? 'Generating…' : 'Download PDF'}
                 </Button>
             </div>
 
             {Template ? (
-                <Template participant={participant} event={event} logos={logos} signatures={signatures} />
+                <>
+                    {/* ── Mobile layout ── */}
+                    <div className="flex min-h-screen flex-col bg-muted/30 sm:hidden print:hidden">
+                        {/* Certificate scaled to fit */}
+                        <div
+                            className="w-full overflow-hidden bg-white shadow"
+                            style={{ height: `${Math.round(window.innerWidth * 794 / 1123)}px` }}
+                        >
+                            <div style={{
+                                transform: `scale(${window.innerWidth / 1123})`,
+                                transformOrigin: 'top left',
+                                width: '1123px',
+                                height: '794px',
+                            }}>
+                                <Template participant={participant} event={event} logos={logos} signatures={signatures} />
+                            </div>
+                        </div>
+
+                        {/* Details card */}
+                        <div className="flex flex-col gap-4 p-5">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                                    <Award className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold">{participant.name}</p>
+                                    <p className="text-xs text-muted-foreground">{event.event_name} · {event.year}</p>
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border bg-background px-4 py-3">
+                                <p className="text-xs text-muted-foreground">Certificate No.</p>
+                                <p className="mt-0.5 font-mono text-sm font-medium">{participant.certificate_no}</p>
+                            </div>
+
+                            {/* Download buttons */}
+                            <div className="flex gap-2">
+                                <Button onClick={downloadPNG} disabled={downloading !== null} variant="outline" className="flex-1 gap-2">
+                                    <FileImage className="h-4 w-4" />
+                                    {downloading === 'png' ? 'Generating…' : 'PNG'}
+                                </Button>
+                                <Button onClick={downloadPDF} disabled={downloading !== null} className="flex-1 gap-2">
+                                    <FileText className="h-4 w-4" />
+                                    {downloading === 'pdf' ? 'Generating…' : 'PDF'}
+                                </Button>
+                            </div>
+
+                            <Link
+                                href="/certificate/search"
+                                className="flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
+                            >
+                                <Search className="h-4 w-4" />
+                                Find another certificate
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* ── Desktop layout ── */}
+                    <div className="hidden sm:block">
+                        <Template participant={participant} event={event} logos={logos} signatures={signatures} />
+                    </div>
+                </>
             ) : (
                 <div className="flex min-h-screen items-center justify-center text-gray-500">
                     Loading certificate…

@@ -100,6 +100,19 @@ function CertificateRenderer({ data }: { data: CertificateData }) {
         );
     }
 
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    const scale    = isMobile ? window.innerWidth / 1123 : 1;
+
+    if (isMobile) {
+        return (
+            <div style={{ height: `${Math.round(window.innerWidth * 794 / 1123)}px`, overflow: 'hidden' }}>
+                <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: '1123px', height: '794px' }}>
+                    <Template participant={data.participant} event={data.event} logos={data.logos} signatures={data.signatures} />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <Template
             participant={data.participant}
@@ -187,18 +200,18 @@ export default function CertificateSearch({ events, results, filters }: Props) {
         <>
             <Head title="Certificate Lookup" />
 
-            <div className="flex h-screen overflow-hidden">
+            <div className="flex h-screen flex-col overflow-hidden md:flex-row">
 
-                {/* ── Left panel — 30% ── */}
-                <div className="flex w-[30%] shrink-0 flex-col overflow-y-auto border-r bg-background">
-                    <div className="flex flex-1 flex-col gap-5 p-6">
+                {/* ── Left panel ── */}
+                <div className="flex w-full shrink-0 flex-col overflow-y-auto border-b bg-background md:w-[30%] md:border-b-0 md:border-r">
+                    <div className="flex flex-1 flex-col gap-4 p-4 md:gap-5 md:p-6">
 
                         {/* Logo + heading */}
-                        <div className="flex flex-col items-center gap-3 text-center">
-                            <img src="/apple-touch-icon.png" alt="Logo" className="h-12 w-12 rounded-2xl shadow-md" />
+                        <div className="flex items-center gap-3 md:flex-col md:items-center md:gap-3 md:text-center">
+                            <img src="/apple-touch-icon.png" alt="Logo" className="h-10 w-10 rounded-2xl shadow-md md:h-12 md:w-12" />
                             <div>
-                                <h1 className="text-xl font-bold tracking-tight">Certificate Lookup</h1>
-                                <p className="mt-0.5 text-xs text-muted-foreground">View or find your achievement certificate</p>
+                                <h1 className="text-lg font-bold tracking-tight md:text-xl">Certificate Lookup</h1>
+                                <p className="text-xs text-muted-foreground">View or find your achievement certificate</p>
                             </div>
                         </div>
 
@@ -219,7 +232,7 @@ export default function CertificateSearch({ events, results, filters }: Props) {
 
                         {/* ── Direct lookup ── */}
                         {tab === 'direct' && (
-                            <div className="rounded-2xl border bg-card p-5 shadow-sm">
+                            <div className="rounded-2xl border bg-card p-4 shadow-sm md:p-5">
                                 <p className="mb-3 text-xs text-muted-foreground">Enter the certificate number from your email.</p>
                                 <form onSubmit={handleDirectLookup} className="space-y-3">
                                     <div className="relative">
@@ -236,7 +249,7 @@ export default function CertificateSearch({ events, results, filters }: Props) {
 
                         {/* ── Lost certificate ── */}
                         {tab === 'lost' && (
-                            <div className="rounded-2xl border bg-card p-5 shadow-sm">
+                            <div className="rounded-2xl border bg-card p-4 shadow-sm md:p-5">
                                 <p className="mb-3 text-xs text-muted-foreground">Select your event and year, then enter your registered email, phone, or USN.</p>
                                 <form onSubmit={handleSearch} className="space-y-3">
                                     <div className="space-y-1.5">
@@ -314,13 +327,13 @@ export default function CertificateSearch({ events, results, filters }: Props) {
                     </div>
                 </div>
 
-                {/* ── Right panel — 70%, fully scrollable ── */}
+                {/* ── Right panel ── */}
                 <div className="flex flex-1 flex-col overflow-hidden">
 
-                    {/* Toolbar — always visible */}
+                    {/* Toolbar */}
                     {certData && !loading && (
-                        <div className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-2">
-                            <span className="text-xs text-muted-foreground font-mono">{activeCertNo}</span>
+                        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b bg-background px-4 py-2">
+                            <span className="text-xs font-mono text-muted-foreground">{activeCertNo}</span>
                             <div className="flex items-center gap-2">
                                 <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={handleDownloadPNG} disabled={downloading !== null}>
                                     {downloading === 'png' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileImage className="h-3.5 w-3.5" />}
@@ -333,13 +346,14 @@ export default function CertificateSearch({ events, results, filters }: Props) {
                                 <a href={`/certificate/${activeCertNo}`} target="_blank" rel="noreferrer"
                                     className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
                                 >
-                                    <ExternalLink className="h-3.5 w-3.5" /> Open full page
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    <span className="hidden sm:inline">Open full page</span>
                                 </a>
                             </div>
                         </div>
                     )}
 
-                    {/* Content area — scrolls both axes */}
+                    {/* Content area */}
                     <div className="flex-1 overflow-auto bg-muted/30">
                         {loading ? (
                             <div className="flex h-full items-center justify-center">
@@ -355,7 +369,7 @@ export default function CertificateSearch({ events, results, filters }: Props) {
                         ) : certData ? (
                             <CertificateRenderer data={certData} />
                         ) : (
-                            <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+                            <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
                                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
                                     <Award className="h-10 w-10 text-muted-foreground/40" />
                                 </div>
