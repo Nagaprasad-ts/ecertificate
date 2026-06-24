@@ -1,10 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Activity, CalendarDays, FileSpreadsheet, KeyRound, LayoutTemplate, Mail, Shield, Terminal, UserCog, Users } from 'lucide-react';
+import { Activity, Archive, CalendarDays, ChevronRight, FileSpreadsheet, KeyRound, LayoutTemplate, Mail, Shield, Terminal, UserCog, Users } from 'lucide-react';
 import { useMemo } from 'react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     Sidebar,
     SidebarContent,
@@ -21,8 +22,8 @@ import { dashboard } from '@/routes';
 import type { Auth, NavItem } from '@/types';
 
 const coreNavItems: NavItem[] = [
-    { title: 'Events',       href: '/events',        icon: CalendarDays },
-    { title: 'Participants', href: '/participants',   icon: Users },
+    { title: 'Events',       href: '/events',      icon: CalendarDays },
+    { title: 'Participants', href: '/participants', icon: Users },
 ];
 
 const userMgmtNavItems: NavItem[] = [
@@ -124,6 +125,30 @@ export function AppSidebar() {
                             ))}
                         </SidebarMenu>
                     </SidebarGroup>
+                )}
+                {isSuperAdmin && (
+                    <Collapsible defaultOpen={isCurrentUrl('/events/archived')} className="group/collapsible">
+                        <SidebarGroup className="px-2 py-0">
+                            <SidebarGroupLabel asChild>
+                                <CollapsibleTrigger className="flex w-full items-center justify-between hover:text-foreground">
+                                    Archived
+                                    <ChevronRight className="h-3.5 w-3.5 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                                </CollapsibleTrigger>
+                            </SidebarGroupLabel>
+                            <CollapsibleContent>
+                                <SidebarMenu>
+                                    <SidebarMenuItem>
+                                        <SidebarMenuButton asChild isActive={isCurrentUrl('/events/archived')} tooltip={{ children: 'Events' }}>
+                                            <Link href="/events/archived" prefetch>
+                                                <Archive />
+                                                <span>Events</span>
+                                            </Link>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                </SidebarMenu>
+                            </CollapsibleContent>
+                        </SidebarGroup>
+                    </Collapsible>
                 )}
             </SidebarContent>
 

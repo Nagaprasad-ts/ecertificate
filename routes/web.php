@@ -30,9 +30,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('templates.preview');
 
     // ── Events ────────────────────────────────────────────────────────────────
-    // bulk-destroy before resource to avoid {event} capture
+    // bulk-destroy and archived before resource to avoid {event} capture
     Route::delete('events/bulk-destroy', [\App\Http\Controllers\EventController::class, 'bulkDestroy'])->name('events.bulk-destroy');
+    Route::get('events/archived',        [\App\Http\Controllers\EventController::class, 'archivedIndex'])->name('events.archived');
     Route::resource('events', \App\Http\Controllers\EventController::class);
+    Route::post('events/{event}/archive',   [\App\Http\Controllers\EventController::class, 'archive'])->name('events.archive');
+    Route::post('events/{event}/unarchive', [\App\Http\Controllers\EventController::class, 'unarchive'])->name('events.unarchive');
 
     // Event editions — nested under events
     Route::post('events/{event}/editions',                    [\App\Http\Controllers\EventEditionController::class, 'store'])->name('event-editions.store');

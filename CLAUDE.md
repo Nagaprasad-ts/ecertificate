@@ -220,7 +220,7 @@ Use Wayfinder to generate TypeScript functions for Laravel routes. Import from `
 ### Commands
 
 ```bash
-# Start everything (serve + queue + Vite) concurrently
+# Start everything (queue worker + scheduler + Vite) concurrently — Herd serves the app
 composer dev
 
 # PHP linting (Laravel Pint)
@@ -242,6 +242,19 @@ php artisan permissions:sync --dry-run       # preview without writing
 # Reset dev DB
 php artisan migrate:fresh --seed             # creates 1 super_admin user only
 ```
+
+### Queue / Email delivery
+
+- **Local (Herd free):** `QUEUE_CONNECTION=database`. `composer dev` runs `php artisan queue:work --tries=3` and `php artisan schedule:work`. No Redis required.
+- **Production (AWS):** `QUEUE_CONNECTION=redis` (ElastiCache). Supervisor keeps `php artisan horizon` alive. Cron fires `schedule:run` every minute.
+- `SendCertificateEmail` job: `tries=3`, `backoff=60s`. `failed()` hook writes `EmailLog` with `status=failed` after exhausting retries.
+- `confirmImport()` flips participants to `active` immediately then dispatches one job per participant — the HTTP response returns in milliseconds.
+
+### Horizon
+
+- `/horizon` is gated by `Horizon::auth()` in `HorizonServiceProvider` — enforces `role->slug === 'super_admin'` in **all** environments (including local). Without this, Horizon bypasses the gate locally.
+- `horizon:snapshot` runs every 5 minutes via the scheduler — required for the Metrics graphs to populate. Seed the first snapshot manually with `php artisan horizon:snapshot`.
+- `composer.json` pins `"platform": {"php": "8.3.6"}` so lock files generated on the Windows/PHP 8.4 dev machine resolve packages compatible with the PHP 8.3 production server.
 
 ### Inertia layout routing
 
@@ -289,7 +302,29 @@ ImportBatch  (UUID PK: batch_id, failures JSON, email_window_from/to datetime)
  └── event_id, event_edition_id, template_id, imported_by (user FK)
 ```
 
-`certificate_no` format: `{event-slug}-{year}-{5hex}`, guaranteed unique by retry loop.
+`ImportBatch` declares `protected $primaryKey = 'batch_id'`, so use `findOrFail($batchId)`, `find($batchId, ['*'])`, and `destroy($batchId)` directly — do not use `where('batch_id', '=', $batchId)` chains on this model.
+
+`certificate_no` format: `{event-slug}-{year}-{6hex}` (e.g. `sargam-2026-1a2b3c`), guaranteed unique per event-year by a retry loop (`0x000000`–`0xFFFFFF` = 16.7 M values per event-year).
+
+### Event archiving
+
+Events have an `archived_at` nullable timestamp. Archived events are hidden from the active list but certificates remain publicly accessible — participant queries never filter on `events.archived_at`.
+
+- `Event::scopeActive()` / `Event::scopeArchived()` — use these in any query that should respect archive state.
+- `POST /events/{event}/archive` and `POST /events/{event}/unarchive` — gated by `permission:events.update`.
+- Permanent delete (`destroy`) is intentionally only surfaced in the UI for already-archived events.
+- The import form (`importForm()`) passes `activeOnly: true` to the private `eventOptions()` helper, which applies `whereNull('archived_at')` — archived events must not appear in the import event dropdown. The participants index passes no flag so users can still filter existing participants by archived events.
+
+### Template-driven Excel import validation
+
+`Template` has an `expected_columns` JSON column (nullable array of `{key, label, required}`). The four base columns (`name`, `email`, `usn`, `phone`) are always required and defined in `Template::BASE_COLUMNS` / `fullExpectedColumns()`.
+
+`ParticipantsImport` reads `fullExpectedColumns()` and:
+- Rejects files with missing required columns or unexpected columns (schema errors abort the whole import — no rows are written).
+- Strips blank and purely-numeric header keys before validation (Excel trailing-column artifacts).
+- Schema errors are returned via `schemaErrors()` and rendered as a structured error card on the import page, not as a plain text message.
+
+To add extra columns to a template: edit the template in the admin UI — the repeater stores `{key (snake_case), label, required}` entries. Keys cannot duplicate the four base columns.
 
 ### Import/confirm workflow
 
@@ -307,12 +342,35 @@ A custom Vite plugin (`templateManifestPlugin` in `vite.config.ts`) auto-scans t
 
 At render time, `certificates/show` and `certificates/preview` do a dynamic `import()` keyed by `templateFile` to load the correct component. Public certificates (`/certificate/{no}`) only show participants with `status = 'active'`.
 
+### Vite bundle splitting
+
+`vite.config.ts` uses `build.rollupOptions.output.manualChunks` to split vendors into four cached chunks: `vendor-react` (React + ReactDOM), `vendor-inertia` (@inertiajs/react), `vendor-ui` (Radix UI, Lucide, shadcn utilities), and the app chunk. jsPDF and html2canvas are left in their own auto-split chunks since they're only loaded on certificate download pages.
+
 ### Code style (project-specific)
 
 - Tailwind v4 — no `tailwind.config.*`. All customisation is in `resources/css/app.css` via CSS variables (OKLch). Use semantic classes (`bg-card`, `text-muted-foreground`) not hardcoded values.
 - Path alias `@/` → `resources/js/`.
 - `StatCard` (`@/components/ui/stat-card`) is the standard stat display component.
 - Wayfinder generates typed route helpers into `@/routes` and `@/actions` at build time — prefer those over string URLs.
+
+### TypeScript / React conventions
+
+- Always use a separate top-level `import type { Foo }` — never inline `import { type Foo }` inside a value import (`import/consistent-type-specifier-style`).
+- Use expanded block syntax for all conditionals and early returns — no single-line `if (x) return y;` shorthands. Leave a blank line between logical sections of a function body.
+
+### Intelephense P1005 false positives (Eloquent)
+
+Intelephense confuses Eloquent static methods with PHP built-ins and raises "Not enough arguments" errors. Known patterns and their fixes:
+
+| Error | Root cause | Fix |
+|---|---|---|
+| `->count()` — "Expected 1. Found 0" | Confused with PHP `count($array)` | Use `->count('*')` |
+| `Model::find($id)` — "Expected 2. Found 1" | Phantom 2-arg signature | Use `Model::find($id, ['*'])` |
+| `->where('col', '=', $val)` — "Expected 4. Found 2/3" | Phantom 4-arg `where` | Extract a named local scope (e.g. `scopeForBatch`) |
+| `->whereIn('col', $arr)->delete()` — "Expected 4. Found 2" | `whereIn` confused with `where` | Use `Model::destroy($ids)` for bulk deletes |
+| `$model->delete()` — "Expected 1. Found 0" | Intelephense invents phantom `static delete($id)` | Add `/** @method bool|null delete() */` above the class |
+
+`Participant` already has `scopeForBatch(Builder $query, string $batchId)` and the `@method` PHPDoc — check `app/Models/Participant.php` before adding similar fixes to other models.
 
 ### Constraints
 

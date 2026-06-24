@@ -36,12 +36,16 @@ class TemplateController extends Controller implements HasMiddleware
 
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
-            'name'          => ['required', 'string', 'max:255'],
-            'template_file' => ['required', 'string', 'max:500'],
+        $data = $request->validate([
+            'name'                        => ['required', 'string', 'max:255'],
+            'template_file'               => ['required', 'string', 'max:500'],
+            'expected_columns'            => ['nullable', 'array'],
+            'expected_columns.*.key'      => ['required', 'string', 'max:100', 'regex:/^[a-z0-9_]+$/', 'distinct', 'not_in:name,email,usn,phone'],
+            'expected_columns.*.label'    => ['required', 'string', 'max:255'],
+            'expected_columns.*.required' => ['required', 'boolean'],
         ]);
 
-        Template::create($request->only('name', 'template_file'));
+        Template::create($data);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Template created successfully.']);
 
@@ -57,12 +61,16 @@ class TemplateController extends Controller implements HasMiddleware
 
     public function update(Request $request, Template $template): RedirectResponse
     {
-        $request->validate([
-            'name'          => ['required', 'string', 'max:255'],
-            'template_file' => ['required', 'string', 'max:500'],
+        $data = $request->validate([
+            'name'                        => ['required', 'string', 'max:255'],
+            'template_file'               => ['required', 'string', 'max:500'],
+            'expected_columns'            => ['nullable', 'array'],
+            'expected_columns.*.key'      => ['required', 'string', 'max:100', 'regex:/^[a-z0-9_]+$/', 'distinct', 'not_in:name,email,usn,phone'],
+            'expected_columns.*.label'    => ['required', 'string', 'max:255'],
+            'expected_columns.*.required' => ['required', 'boolean'],
         ]);
 
-        $template->update($request->only('name', 'template_file'));
+        $template->update($data);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Template updated successfully.']);
 

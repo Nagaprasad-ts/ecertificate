@@ -18,28 +18,46 @@ class EventController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('permission:events.read',   only: ['index', 'show']),
+            new Middleware('permission:events.read',   only: ['index', 'archivedIndex', 'show']),
             new Middleware('permission:events.create', only: ['create', 'store']),
-            new Middleware('permission:events.update', only: ['edit', 'update']),
+            new Middleware('permission:events.update', only: ['edit', 'update', 'archive', 'unarchive']),
             new Middleware('permission:events.delete', only: ['destroy', 'bulkDestroy']),
         ];
     }
 
     public function index(): Response
     {
-        $events = Event::withCount('editions')
-            ->orderBy('event_name')
-            ->get()
-            ->map(fn ($e) => [
-                'id'             => $e->id,
-                'event_name'     => $e->event_name,
-                'logo'           => $e->logo,
-                'initials'       => $e->initials,
-                'editions_count' => $e->editions_count,
-            ]);
+        $map = fn ($e) => [
+            'id'             => $e->id,
+            'event_name'     => $e->event_name,
+            'logo'           => $e->logo,
+            'initials'       => $e->initials,
+            'editions_count' => $e->editions_count,
+            'archived_at'    => $e->archived_at?->toIso8601String(),
+        ];
+
+        $active = Event::active()->withCount('editions')->orderBy('event_name')->get()->map($map);
 
         return Inertia::render('events/index', [
-            'events' => $events,
+            'events' => $active,
+        ]);
+    }
+
+    public function archivedIndex(): Response
+    {
+        $map = fn ($e) => [
+            'id'             => $e->id,
+            'event_name'     => $e->event_name,
+            'logo'           => $e->logo,
+            'initials'       => $e->initials,
+            'editions_count' => $e->editions_count,
+            'archived_at'    => $e->archived_at?->toIso8601String(),
+        ];
+
+        $archived = Event::archived()->withCount('editions')->orderBy('event_name')->get()->map($map);
+
+        return Inertia::render('events/archived', [
+            'archivedEvents' => $archived,
         ]);
     }
 
@@ -76,11 +94,12 @@ class EventController extends Controller implements HasMiddleware
 
         return Inertia::render('events/show', [
             'event' => [
-                'id'         => $event->id,
-                'event_name' => $event->event_name,
-                'logo'       => $event->logo,
-                'initials'   => $event->initials,
-                'editions'   => $event->editions->map(fn ($ed) => [
+                'id'          => $event->id,
+                'event_name'  => $event->event_name,
+                'logo'        => $event->logo,
+                'initials'    => $event->initials,
+                'archived_at' => $event->archived_at?->toIso8601String(),
+                'editions'    => $event->editions->map(fn ($ed) => [
                     'id'                 => $ed->id,
                     'year'               => $ed->year,
                     'template_ids'       => $ed->templates->pluck('id'),
@@ -140,6 +159,24 @@ class EventController extends Controller implements HasMiddleware
         return to_route('events.show', $event);
     }
 
+    public function archive(Event $event): RedirectResponse
+    {
+        $event->update(['archived_at' => now()]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => "\"{$event->event_name}\" archived. Certificates remain accessible."]);
+
+        return to_route('events.index');
+    }
+
+    public function unarchive(Event $event): RedirectResponse
+    {
+        $event->update(['archived_at' => null]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => "\"{$event->event_name}\" restored to active events."]);
+
+        return to_route('events.archived');
+    }
+
     public function destroy(Event $event): RedirectResponse
     {
         if ($event->logo) {
@@ -149,7 +186,7 @@ class EventController extends Controller implements HasMiddleware
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Event deleted successfully.']);
 
-        return to_route('events.index');
+        return to_route('events.archived');
     }
 
     public function bulkDestroy(Request $request): RedirectResponse

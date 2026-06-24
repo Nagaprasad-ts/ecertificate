@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
+/**
+ * @method bool|null delete()
+ */
 class Participant extends Model
 {
     protected $fillable = [
@@ -25,6 +29,11 @@ class Participant extends Model
     protected $casts = [
         'data' => 'array',
     ];
+
+    public function scopeForBatch(Builder $query, string $batchId): Builder
+    {
+        return $query->where('batch_id', '=', $batchId);
+    }
 
     /** Only confirmed participants (email sent). */
     public function scopeActive($query)
@@ -73,7 +82,7 @@ class Participant extends Model
         $slug = str($eventName)->slug()->toString();
 
         do {
-            $hex = sprintf('%05x', random_int(0, 0xFFFFF));
+            $hex = sprintf('%06x', random_int(0, 0xFFFFFF));
             $no  = "{$slug}-{$edition->year}-{$hex}";
         } while (static::where('certificate_no', $no)->exists());
 

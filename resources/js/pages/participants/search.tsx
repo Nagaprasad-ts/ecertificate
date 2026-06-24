@@ -1,7 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { Award, ExternalLink, FileImage, FileText, Hash, HelpCircle, Loader2, Search, Trophy } from 'lucide-react';
+import { Award, ExternalLink, FileImage, FileText, Hash, Search, Loader2, Trophy } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useEffect, useState } from 'react';
@@ -21,7 +21,8 @@ type CertificateData = CertificateProps & { templateFile: string };
 type Edition     = { id: number; year: number };
 type EventOption = { id: number; event_name: string; editions: Edition[] };
 type Result      = { id: number; name: string; certificate_no: string; event_name: string; year: number };
-type Props       = { events: EventOption[]; results: Result[] | null; filters: { event_edition_id?: string; query?: string } };
+type QueryType   = 'email' | 'phone' | 'usn';
+type Props       = { events: EventOption[]; results: Result[] | null; filters: { event_edition_id?: string; query?: string; query_type?: QueryType } };
 
 // ── oklch → rgb conversion for html2canvas ──
 function oklchToRgb(l: number, c: number, h: number): string {
@@ -33,6 +34,7 @@ function oklchToRgb(l: number, c: number, h: number): string {
     const s_ = l - 0.0894841775 * a - 1.2914855480 * b;
     const lc = l_ ** 3; const mc = m_ ** 3; const sc = s_ ** 3;
     const toSrgb = (v: number) => Math.round(Math.max(0, Math.min(1, v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055)) * 255);
+    
     return `rgb(${toSrgb(4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc)},${toSrgb(-1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc)},${toSrgb(-0.0041960863 * lc - 0.7034186147 * mc + 1.7076147010 * sc)})`;
 }
 function replaceOklch(css: string): string {
@@ -41,19 +43,30 @@ function replaceOklch(css: string): string {
         const l = parseFloat(parts[0]);
         const c = parseFloat(parts[1] ?? '0');
         const h = parseFloat(parts[2] ?? '0');
-        if (isNaN(l)) return 'rgb(128,128,128)';
+        
+        if (isNaN(l)) {
+            return 'rgb(128,128,128)';
+        }
+        
         return oklchToRgb(l, isNaN(c) ? 0 : c, isNaN(h) ? 0 : h);
     });
 }
 
 async function captureCanvas(): Promise<HTMLCanvasElement> {
     const el = document.getElementById('certificate-paper');
-    if (!el) throw new Error('Certificate element not found');
+    
+    if (!el) {
+        throw new Error('Certificate element not found');
+    }
+    
     await Promise.all(
         Array.from(el.querySelectorAll('img')).map((img) =>
-            img.complete ? Promise.resolve() : new Promise<void>((resolve) => { img.onload = () => resolve(); img.onerror = () => resolve(); }),
+            img.complete ? Promise.resolve() : new Promise<void>((resolve) => { 
+                img.onload = () => resolve(); img.onerror = () => resolve(); 
+            }),
         ),
     );
+    
     return html2canvas(el, {
         scale: 2,
         useCORS: false,
@@ -64,8 +77,17 @@ async function captureCanvas(): Promise<HTMLCanvasElement> {
         width: 1123, height: 794, windowWidth: 1123, windowHeight: 794,
         onclone: (clonedDoc) => {
             const clonedEl = clonedDoc.getElementById('certificate-paper');
-            if (clonedEl) { clonedEl.style.width = '1123px'; clonedEl.style.height = '794px'; }
-            clonedDoc.querySelectorAll('style').forEach((s) => { if (s.textContent?.includes('oklch')) s.textContent = replaceOklch(s.textContent); });
+            
+            if (clonedEl) { 
+                clonedEl.style.width = '1123px'; clonedEl.style.height = '794px'; 
+            }
+            
+            clonedDoc.querySelectorAll('style').forEach((s) => { 
+                if (s.textContent?.includes('oklch')) {
+                    s.textContent = replaceOklch(s.textContent);
+                } 
+            });
+            
             clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach((l) => l.remove());
         },
     });
@@ -82,11 +104,24 @@ function CertificateRenderer({ data }: { data: CertificateData }) {
         let cancelled = false;
         const key      = `/resources/js/certificate-templates/${data.templateFile}.tsx`;
         const importer = modules[key] as TemplateImporter | undefined;
-        if (!importer) { console.error('Template not found:', key); return; }
+        
+        if (!importer) { 
+            console.error('Template not found:', key); 
+            
+            return; 
+        }
+        
         void importer()
-            .then((mod) => { if (!cancelled) setLoaded({ file: data.templateFile, Component: mod.default }); })
+            .then((mod) => { 
+                if (!cancelled) {
+                    setLoaded({ file: data.templateFile, Component: mod.default });
+                } 
+            })
             .catch((err: unknown) => console.error('Template load failed:', err));
-        return () => { cancelled = true; };
+        
+            return () => { 
+                cancelled = true; 
+            };
     }, [data.templateFile]);
 
     // If the loaded file doesn't match the requested one, we're still loading.
@@ -130,16 +165,23 @@ export default function CertificateSearch({ events, results, filters }: Props) {
     const eventOptions = events.map((e) => ({ value: String(e.id), label: e.event_name }));
 
     const initialEventId = (() => {
-        if (!filters.event_edition_id) return '';
-        for (const ev of events) {
-            if (ev.editions.some((ed) => String(ed.id) === filters.event_edition_id)) return String(ev.id);
+        if (!filters.event_edition_id) {
+            return '';
         }
+        
+        for (const ev of events) {
+            if (ev.editions.some((ed) => String(ed.id) === filters.event_edition_id)) {
+                return String(ev.id);
+            }
+        }
+        
         return '';
     })();
 
     const [eventId, setEventId]     = useState(initialEventId);
     const [editionId, setEditionId] = useState(filters.event_edition_id ?? '');
     const [query, setQuery]         = useState(filters.query ?? '');
+    const [queryType, setQueryType] = useState<QueryType>(filters.query_type ?? 'email');
 
     const [certData, setCertData]         = useState<CertificateData | null>(null);
     const [activeCertNo, setActiveCertNo] = useState<string | null>(null);
@@ -151,49 +193,87 @@ export default function CertificateSearch({ events, results, filters }: Props) {
     const selectedEvent     = events.find((e) => String(e.id) === eventId);
     const availableEditions = selectedEvent?.editions ?? [];
 
-    function handleEventChange(id: string) { setEventId(id); setEditionId(''); }
+    function handleEventChange(id: string) { 
+        setEventId(id); setEditionId(''); 
+    }
 
     useEffect(() => {
-        if (results && results.length === 1) loadCertificate(results[0].certificate_no);
+        if (results && results.length === 1) {
+            loadCertificate(results[0].certificate_no);
+        }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     async function loadCertificate(no: string) {
-        if (no === activeCertNo) return;
+        if (no === activeCertNo) {
+            return;
+        }
+        
         setLoading(true); setFetchError(null); setActiveCertNo(no); setCertData(null);
+        
         try {
             const res = await fetch(`/certificate/${no}/data`);
-            if (!res.ok) { setFetchError(res.status === 404 ? 'Certificate not found.' : 'Failed to load certificate.'); }
-            else { setCertData(await res.json() as CertificateData); }
-        } catch { setFetchError('Network error — please try again.'); }
-        finally { setLoading(false); }
+            
+            if (!res.ok) { 
+                setFetchError(res.status === 404 ? 'Certificate not found.' : 'Failed to load certificate.'); 
+            } else { 
+                setCertData(await res.json() as CertificateData); 
+            }
+        } catch { 
+            setFetchError('Network error — please try again.'); 
+        } finally { 
+            setLoading(false); 
+        }
     }
 
-    function handleDirectLookup(e: SyntheticEvent) { e.preventDefault(); const t = certNo.trim(); if (t) loadCertificate(t); }
-    function handleSearch(e: SyntheticEvent) { e.preventDefault(); router.get('/certificate/search', { event_edition_id: editionId, query }, { preserveScroll: true }); }
+    function handleDirectLookup(e: SyntheticEvent) { 
+        e.preventDefault(); const t = certNo.trim(); 
+            
+        if (t) {
+            loadCertificate(t);
+        } 
+    }
+    
+    function handleQueryTypeChange(type: QueryType) {
+        setQueryType(type);
+        setQuery('');
+    }
+
+    function handleSearch(e: SyntheticEvent) {
+        e.preventDefault();
+        router.get('/certificate/search', { event_edition_id: editionId, query, query_type: queryType }, { preserveScroll: true });
+    }
 
     async function handleDownloadPDF() {
         setDownloading('pdf');
+        
         try {
             const canvas  = await captureCanvas();
             const imgData = canvas.toDataURL('image/jpeg', 1.0);
             const pdf     = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
             pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
             pdf.save(`${activeCertNo}.pdf`);
-        } catch (err) { setDownloadError(`PDF failed: ${err instanceof Error ? err.message : String(err)}`); }
-        finally { setDownloading(null); }
+        } catch (err) { 
+            setDownloadError(`PDF failed: ${err instanceof Error ? err.message : String(err)}`); 
+        } finally { 
+            setDownloading(null); 
+        }
     }
 
     async function handleDownloadPNG() {
         setDownloading('png');
+        
         try {
             const canvas = await captureCanvas();
             const link   = document.createElement('a');
             link.download = `${activeCertNo}.png`;
             link.href     = canvas.toDataURL('image/png');
             link.click();
-        } catch (err) { setDownloadError(`PNG failed: ${err instanceof Error ? err.message : String(err)}`); }
-        finally { setDownloading(null); }
+        } catch (err) { 
+            setDownloadError(`PNG failed: ${err instanceof Error ? err.message : String(err)}`); 
+        } finally { 
+            setDownloading(null); 
+        }
     }
 
     return (
@@ -220,13 +300,13 @@ export default function CertificateSearch({ events, results, filters }: Props) {
                             <button type="button" onClick={() => setTab('direct')}
                                 className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors ${tab === 'direct' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
                             >
-                                <Hash className="h-3.5 w-3.5" /> Have cert no.
+                                <Hash className="h-3.5 w-3.5" /> Certificate Number
                             </button>
                             <div className="w-px bg-border" />
                             <button type="button" onClick={() => setTab('lost')}
                                 className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors ${tab === 'lost' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
                             >
-                                <HelpCircle className="h-3.5 w-3.5" /> Lost / find it
+                                <Search className="h-3.5 w-3.5" /> Search by Details
                             </button>
                         </div>
 
@@ -277,8 +357,28 @@ export default function CertificateSearch({ events, results, filters }: Props) {
                                         </Select>
                                     </div>
                                     <div className="space-y-1.5">
-                                        <Label htmlFor="query" className="text-sm font-medium">Email / Phone / USN</Label>
-                                        <Input id="query" placeholder="jane@example.com or 9876543210" value={query} onChange={(e) => setQuery(e.target.value)} required />
+                                        <Label className="text-sm font-medium">Search by</Label>
+                                        <div className="flex overflow-hidden rounded-lg border bg-muted/40">
+                                            {(['email', 'phone', 'usn'] as QueryType[]).map((type) => (
+                                                <button
+                                                    key={type}
+                                                    type="button"
+                                                    onClick={() => handleQueryTypeChange(type)}
+                                                    className={`flex-1 py-1.5 text-xs font-medium capitalize transition-colors ${queryType === type ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                                                >
+                                                    {type === 'usn' ? 'USN' : type.charAt(0).toUpperCase() + type.slice(1)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <Input
+                                            id="query"
+                                            type={queryType === 'email' ? 'email' : 'text'}
+                                            inputMode={queryType === 'phone' ? 'numeric' : 'text'}
+                                            placeholder={queryType === 'email' ? 'jane@example.com' : queryType === 'phone' ? '9876543210' : 'USN123456'}
+                                            value={query}
+                                            onChange={(e) => setQuery(e.target.value)}
+                                            required
+                                        />
                                     </div>
                                     <Button type="submit" className="w-full gap-2" disabled={!editionId || !query || loading}>
                                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -301,6 +401,7 @@ export default function CertificateSearch({ events, results, filters }: Props) {
                                                 <ul className="space-y-1.5">
                                                     {results.map((r) => {
                                                         const active = activeCertNo === r.certificate_no;
+                                                        
                                                         return (
                                                             <li key={r.id}>
                                                                 <button type="button" onClick={() => loadCertificate(r.certificate_no)}

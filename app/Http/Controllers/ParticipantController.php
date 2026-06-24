@@ -167,7 +167,7 @@ class ParticipantController extends Controller implements HasMiddleware
     public function bulkDestroy(Request $request): RedirectResponse
     {
         $ids = $request->validate(['ids' => ['required', 'array'], 'ids.*' => ['integer']])['ids'];
-        Participant::whereIn('id', $ids)->delete();
+        Participant::destroy($ids);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => count($ids) . ' participant(s) deleted.']);
 
@@ -201,8 +201,8 @@ class ParticipantController extends Controller implements HasMiddleware
     public function importForm(): Response
     {
         return Inertia::render('participants/import', [
-            'events'    => $this->eventOptions(),
-            'templates' => Template::select('id', 'name')->get(),
+            'events'    => $this->eventOptions(activeOnly: true),
+            'templates' => Template::select('id', 'name', 'expected_columns')->get(),
         ]);
     }
 
@@ -237,7 +237,13 @@ class ParticipantController extends Controller implements HasMiddleware
         $uploadedFile = $request->file('file');
         Excel::import($import, $uploadedFile);
 
-        ImportBatch::where('batch_id', $batchId)->update([
+        if (! empty($import->schemaErrors())) {
+            ImportBatch::destroy($batchId);
+
+            return back()->withErrors(['file' => implode(' ', $import->schemaErrors())]);
+        }
+
+        ImportBatch::findOrFail($batchId)->update([
             'participant_count' => $import->count(),
             'failed_count'      => count($import->failures()),
             'failures'          => $import->failures(),
@@ -251,7 +257,7 @@ class ParticipantController extends Controller implements HasMiddleware
         $batch = ImportBatch::with('event')->find($batchId);
 
         $pending = Participant::pending()
-            ->where('batch_id', $batchId)
+            ->forBatch($batchId)
             ->get()
             ->map(fn ($p) => [
                 'id'             => $p->id,
@@ -277,7 +283,7 @@ class ParticipantController extends Controller implements HasMiddleware
         // Derive year from the first pending participant's edition (best-effort display)
         $editionYear = null;
         if ($batch) {
-            $firstPending = Participant::pending()->where('batch_id', $batchId)->with('edition')->first();
+            $firstPending = Participant::pending()->forBatch($batchId)->with('edition')->first();
             $editionYear  = $firstPending?->edition?->year;
         }
 
@@ -307,7 +313,7 @@ class ParticipantController extends Controller implements HasMiddleware
         $batch = ImportBatch::findOrFail($batchId);
 
         // Derive the edition from the existing pending rows (they all share the same edition)
-        $editionId = Participant::pending()->where('batch_id', $batchId)->value('event_edition_id');
+        $editionId = Participant::pending()->forBatch($batchId)->value('event_edition_id');
 
         if (! $editionId) {
             return back()->withErrors(['file' => 'No pending rows found for this batch.']);
@@ -317,7 +323,7 @@ class ParticipantController extends Controller implements HasMiddleware
         $edition = \App\Models\EventEdition::with('event')->findOrFail($editionId);
 
         // Wipe all existing pending participants for this batch
-        Participant::pending()->where('batch_id', $batchId)->delete();
+        Participant::pending()->forBatch($batchId)->delete();
 
         // Re-run the import under the same batch_id
         $import = new ParticipantsImport(
@@ -330,6 +336,10 @@ class ParticipantController extends Controller implements HasMiddleware
         /** @var \Illuminate\Http\UploadedFile $uploadedFile */
         $uploadedFile = $request->file('file');
         Excel::import($import, $uploadedFile);
+
+        if (! empty($import->schemaErrors())) {
+            return back()->withErrors(['file' => implode(' ', $import->schemaErrors())]);
+        }
 
         $batch->update([
             'participant_count' => $import->count(),
@@ -369,7 +379,7 @@ class ParticipantController extends Controller implements HasMiddleware
 
     public function confirmImport(string $batchId): RedirectResponse
     {
-        $batch = ImportBatch::find($batchId);
+        $batch = ImportBatch::find($batchId, ['*']);
 
         if (! $batch instanceof ImportBatch) {
             Inertia::flash('toast', ['type' => 'error', 'message' => 'Import batch not found.']);
@@ -383,11 +393,11 @@ class ParticipantController extends Controller implements HasMiddleware
             return redirect()->route('participants.import.results', ['batchId' => $batchId]);
         }
 
-        $participants = Participant::pending()->where('batch_id', $batchId)->get();
+        $participants = Participant::pending()->forBatch($batchId)->get();
         $count        = $participants->count();
 
         // Flip to active immediately — each job handles sending + logging
-        Participant::pending()->where('batch_id', $batchId)->update(['status' => 'active']);
+        Participant::pending()->forBatch($batchId)->update(['status' => 'active']);
 
         foreach ($participants as $p) {
             SendCertificateEmail::dispatch($p, $batchId);
@@ -403,9 +413,9 @@ class ParticipantController extends Controller implements HasMiddleware
 
     public function discardImport(string $batchId): RedirectResponse
     {
-        $count = Participant::pending()->where('batch_id', $batchId)->count();
-        Participant::pending()->where('batch_id', $batchId)->delete();
-        ImportBatch::where('batch_id', $batchId)->delete();
+        $count = Participant::pending()->forBatch($batchId)->count('*');
+        Participant::pending()->forBatch($batchId)->delete();
+        ImportBatch::destroy($batchId);
 
         Inertia::flash('toast', [
             'type'    => 'info',
@@ -417,10 +427,10 @@ class ParticipantController extends Controller implements HasMiddleware
 
     public function deleteBatch(string $batchId): RedirectResponse
     {
-        $batch = ImportBatch::where('batch_id', $batchId)->firstOrFail();
+        $batch = ImportBatch::findOrFail($batchId);
 
-        $count = Participant::where('batch_id', $batchId)->count();
-        Participant::where('batch_id', $batchId)->delete();
+        $count = Participant::forBatch($batchId)->count('*');
+        Participant::forBatch($batchId)->delete();
         $batch->delete();
 
         Inertia::flash('toast', [
@@ -477,18 +487,18 @@ class ParticipantController extends Controller implements HasMiddleware
         $results = null;
 
         if ($request->filled('event_edition_id') && $request->filled('query')) {
-            $q          = trim((string) $request->input('query'));
-            $digitsOnly = preg_replace('/\D/', '', $q);
+            $q         = trim((string) $request->input('query'));
+            $queryType = $request->input('query_type', 'email');
+
+            $column = match ($queryType) {
+                'phone' => 'phone_no',
+                'usn'   => 'usn',
+                default => 'email',
+            };
 
             $results = Participant::active()
                 ->where('event_edition_id', $request->event_edition_id)
-                ->where(function ($inner) use ($q, $digitsOnly) {
-                    $inner->where('email', $q)->orWhere('usn', $q);
-                    $inner->orWhere('phone_no', 'like', "%{$q}%");
-                    if ($digitsOnly !== '' && $digitsOnly !== $q) {
-                        $inner->orWhere('phone_no', 'like', "%{$digitsOnly}%");
-                    }
-                })
+                ->where($column, $queryType === 'phone' ? 'like' : '=', $queryType === 'phone' ? "%{$q}%" : $q)
                 ->with('edition.event')
                 ->get()
                 ->map(fn ($p) => [
@@ -503,16 +513,17 @@ class ParticipantController extends Controller implements HasMiddleware
         return Inertia::render('participants/search', [
             'events'  => $events,
             'results' => $results,
-            'filters' => $request->only('event_edition_id', 'query'),
+            'filters' => $request->only('event_edition_id', 'query', 'query_type'),
         ]);
     }
 
     /**
      * Events grouped with their editions — used by the two-level filter on the index page.
      */
-    private function eventOptions(): \Illuminate\Support\Collection
+    private function eventOptions(bool $activeOnly = false): \Illuminate\Support\Collection
     {
         return Event::with(['editions' => fn ($q) => $q->with('templates')->orderBy('year', 'desc')])
+            ->when($activeOnly, fn ($q) => $q->whereNull('archived_at'))
             ->orderBy('event_name')
             ->get()
             ->map(fn ($e) => [

@@ -97,4 +97,27 @@ export default defineConfig({
         }),
         templateManifestPlugin(),
     ],
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (!id.includes('node_modules')) {
+                        return;
+                    }
+
+                    if (id.includes('/react-dom/') || id.includes('/react/') || id.includes('/scheduler/')) {
+                        return 'vendor-react';
+                    }
+
+                    if (id.includes('@inertiajs/')) {
+                        return 'vendor-inertia';
+                    }
+
+                    if (id.includes('@radix-ui/') || id.includes('lucide-react') || id.includes('class-variance-authority') || id.includes('clsx') || id.includes('tailwind-merge') || id.includes('cmdk') || id.includes('sonner')) {
+                        return 'vendor-ui';
+                    }
+                },
+            },
+        },
+    },
 });

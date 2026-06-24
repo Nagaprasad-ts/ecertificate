@@ -141,19 +141,14 @@ export default function SportsCertificate({ participant, logos }: CertificatePro
                     {/* Meta Validation Overlay */}
                     <div style={{
                         position: 'absolute',
-                        top: '22px',
-                        right: '30px',
-                        textAlign: 'right',
+                        bottom: '22px',
+                        left: '40%',
+                        textAlign: 'left',
                         fontFamily: 'monospace',
                         lineHeight: 1.5,
                         zIndex: 10
                     }}>
-                        <p style={{ fontSize: '11px', color: '#555', margin: 0, fontWeight: 700 }}>
-                            Cert No:&nbsp;{participant.certificate_no}
-                        </p>
-                        <p style={{ fontSize: '10px', color: '#777', margin: 0 }}>
-                            {window.location.origin}/certificate/{participant.certificate_no}
-                        </p>
+                        <a href={`/certificate/${participant.certificate_no}`} target="_blank">Cert No:&nbsp;{participant.certificate_no}</a>
                     </div>
                 </div>
             </div>
