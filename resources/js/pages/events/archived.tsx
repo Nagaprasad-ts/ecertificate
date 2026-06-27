@@ -28,7 +28,8 @@ function EditionCount({ count }: { count: number }) {
 
 export default function ArchivedEventsIndex({ archivedEvents }: { archivedEvents: EventItem[] }) {
     const { auth } = usePage<{ auth: Auth }>().props;
-    const isSuperAdmin = (auth.user as Record<string, unknown> & { role?: { slug: string } })?.role?.slug === 'super_admin';
+    const canArchive = auth.is_super_admin;
+    const canDelete = auth.is_super_admin || auth.permissions.includes('events.delete');
 
     const [search, setSearch]   = useState('');
     const [restoring, setRestoring] = useState<EventItem | null>(null);
@@ -109,9 +110,9 @@ export default function ArchivedEventsIndex({ archivedEvents }: { archivedEvents
                                             <EditionCount count={event.editions_count} />
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center justify-end gap-2">
-                                                {isSuperAdmin && (
-                                                    <>
+                                            {(canArchive || canDelete) && (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {canArchive && (
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
@@ -120,6 +121,8 @@ export default function ArchivedEventsIndex({ archivedEvents }: { archivedEvents
                                                         >
                                                             <ArchiveRestore className="h-3.5 w-3.5" />
                                                         </Button>
+                                                    )}
+                                                    {canDelete && (
                                                         <Button
                                                             variant="destructive"
                                                             size="sm"
@@ -128,9 +131,9 @@ export default function ArchivedEventsIndex({ archivedEvents }: { archivedEvents
                                                         >
                                                             <Trash2 className="h-3.5 w-3.5" />
                                                         </Button>
-                                                    </>
-                                                )}
-                                            </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

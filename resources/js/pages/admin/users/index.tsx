@@ -64,14 +64,16 @@ export default function UsersIndex({ users }: { users: User[] }) {
                                     </td>
                                     <td className="px-4 py-3 text-muted-foreground">{user.created_at}</td>
                                     <td className="px-4 py-3">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <Button variant="outline" size="sm" asChild>
-                                                <Link href={`/admin/users/${user.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
-                                            </Button>
-                                            <Button variant="destructive" size="sm" onClick={() => setDeleting(user)}>
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
+                                        {user.role?.slug !== 'super_admin' && (
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Button variant="outline" size="sm" asChild>
+                                                    <Link href={`/admin/users/${user.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
+                                                </Button>
+                                                <Button variant="destructive" size="sm" onClick={() => setDeleting(user)}>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

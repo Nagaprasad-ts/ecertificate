@@ -15,7 +15,9 @@ const VIEW_KEY = 'logos-view';
 
 export default function LogosIndex({ logos }: { logos: Logo[] }) {
     const { auth } = usePage<{ auth: Auth }>().props;
-    const isSuperAdmin = (auth.user as any).role?.slug === 'super_admin';
+    const canCreate = auth.is_super_admin || auth.permissions.includes('logos.create');
+    const canUpdate = auth.is_super_admin || auth.permissions.includes('logos.update');
+    const canDelete = auth.is_super_admin || auth.permissions.includes('logos.delete');
 
     const [view, setView]       = useState<'grid' | 'list'>(() =>
         (localStorage.getItem(VIEW_KEY) as 'grid' | 'list') ?? 'grid',
@@ -61,14 +63,16 @@ export default function LogosIndex({ logos }: { logos: Logo[] }) {
                     onViewChange={switchView}
                     actions={
                         <>
-                            {isSuperAdmin && count > 0 && (
+                            {canDelete && count > 0 && (
                                 <Button variant="destructive" onClick={() => setBulkConfirm(true)}>
                                     <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({count})
                                 </Button>
                             )}
-                            <Button asChild>
-                                <Link href="/logos/create"><Plus className="mr-2 h-4 w-4" /> Add Logo</Link>
-                            </Button>
+                            {canCreate && (
+                                <Button asChild>
+                                    <Link href="/logos/create"><Plus className="mr-2 h-4 w-4" /> Add Logo</Link>
+                                </Button>
+                            )}
                         </>
                     }
                 />
@@ -90,7 +94,7 @@ export default function LogosIndex({ logos }: { logos: Logo[] }) {
                                 className="group relative flex flex-col items-center gap-3 rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
                             >
                                 {/* Checkbox overlay */}
-                                {isSuperAdmin && (
+                                {canDelete && (
                                     <div className="absolute left-3 top-3">
                                         <Checkbox
                                             checked={selected.has(logo.id)}
@@ -115,14 +119,20 @@ export default function LogosIndex({ logos }: { logos: Logo[] }) {
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex w-full gap-2">
-                                    <Button variant="outline" size="sm" className="flex-1" asChild>
-                                        <Link href={`/logos/${logo.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
-                                    </Button>
-                                    <Button variant="destructive" size="sm" className="flex-1" onClick={() => setDeleting(logo)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                </div>
+                                {(canUpdate || canDelete) && (
+                                    <div className="flex w-full gap-2">
+                                        {canUpdate && (
+                                            <Button variant="outline" size="sm" className="flex-1" asChild>
+                                                <Link href={`/logos/${logo.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
+                                            </Button>
+                                        )}
+                                        {canDelete && (
+                                            <Button variant="destructive" size="sm" className="flex-1" onClick={() => setDeleting(logo)}>
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -132,7 +142,7 @@ export default function LogosIndex({ logos }: { logos: Logo[] }) {
                         <table className="w-full text-sm">
                             <thead className="border-b bg-muted/50">
                                 <tr>
-                                    {isSuperAdmin && (
+                                    {canDelete && (
                                         <th className="w-10 px-4 py-3">
                                             <Checkbox
                                                 checked={isAllSelected}
@@ -150,7 +160,7 @@ export default function LogosIndex({ logos }: { logos: Logo[] }) {
                             <tbody>
                                 {visible.map((logo) => (
                                     <tr key={logo.id} className="border-b last:border-0 transition-colors hover:bg-muted/30">
-                                        {isSuperAdmin && (
+                                        {canDelete && (
                                             <td className="px-4 py-3">
                                                 <Checkbox checked={selected.has(logo.id)} onCheckedChange={() => toggle(logo.id)} />
                                             </td>
@@ -161,14 +171,20 @@ export default function LogosIndex({ logos }: { logos: Logo[] }) {
                                         <td className="px-4 py-3 font-medium">{logo.logo_name}</td>
                                         <td className="px-4 py-3 text-muted-foreground">{logo.year}</td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Button variant="outline" size="sm" asChild>
-                                                    <Link href={`/logos/${logo.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
-                                                </Button>
-                                                <Button variant="destructive" size="sm" onClick={() => setDeleting(logo)}>
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </div>
+                                            {(canUpdate || canDelete) && (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {canUpdate && (
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/logos/${logo.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
+                                                        </Button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <Button variant="destructive" size="sm" onClick={() => setDeleting(logo)}>
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

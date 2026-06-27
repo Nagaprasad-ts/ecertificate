@@ -18,10 +18,10 @@ class UserController extends Controller
         return Inertia::render('admin/users/index', [
             'users' => User::with('role')->latest()->get()
                 ->map(fn ($u) => [
-                    'id'         => $u->id,
-                    'name'       => $u->name,
-                    'email'      => $u->email,
-                    'role'       => $u->role ? ['id' => $u->role->id, 'name' => $u->role->name, 'slug' => $u->role->slug] : null,
+                    'id' => $u->id,
+                    'name' => $u->name,
+                    'email' => $u->email,
+                    'role' => $u->role ? ['id' => $u->role->id, 'name' => $u->role->name, 'slug' => $u->role->slug] : null,
                     'created_at' => $u->created_at->toDateString(),
                 ]),
         ]);
@@ -37,17 +37,17 @@ class UserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'unique:users,email'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', Password::defaults()],
-            'role_id'  => ['nullable', 'exists:roles,id'],
+            'role_id' => ['nullable', 'exists:roles,id'],
         ]);
 
         User::create([
-            'name'     => $data['name'],
-            'email'    => $data['email'],
+            'name' => $data['name'],
+            'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'role_id'  => $data['role_id'] ?? null,
+            'role_id' => $data['role_id'] ?? null,
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'User created successfully.']);
@@ -57,19 +57,25 @@ class UserController extends Controller
 
     public function edit(User $user): Response
     {
+        $user->loadMissing('role');
+        abort_if($user->role?->slug === 'super_admin', 403, 'The Super Admin account cannot be edited.');
+
         return Inertia::render('admin/users/edit', [
-            'user'  => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'role_id' => $user->role_id],
+            'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'role_id' => $user->role_id],
             'roles' => Role::select('id', 'name', 'slug')->get(),
         ]);
     }
 
     public function update(Request $request, User $user): RedirectResponse
     {
+        $user->loadMissing('role');
+        abort_if($user->role?->slug === 'super_admin', 403, 'The Super Admin account cannot be edited.');
+
         $data = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'unique:users,email,' . $user->id],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'unique:users,email,'.$user->id],
             'password' => ['nullable', Password::defaults()],
-            'role_id'  => ['nullable', 'exists:roles,id'],
+            'role_id' => ['nullable', 'exists:roles,id'],
         ]);
 
         $isSelf = $user->id === $request->user()->id;
@@ -80,10 +86,10 @@ class UserController extends Controller
         }
 
         $user->update([
-            'name'    => $data['name'],
-            'email'   => $data['email'],
+            'name' => $data['name'],
+            'email' => $data['email'],
             'role_id' => $data['role_id'] ?? null,
-            ...( filled($data['password']) ? ['password' => Hash::make($data['password'])] : [] ),
+            ...(filled($data['password']) ? ['password' => Hash::make($data['password'])] : []),
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'User updated successfully.']);
@@ -93,16 +99,11 @@ class UserController extends Controller
 
     public function destroy(Request $request, User $user): RedirectResponse
     {
+        $user->loadMissing('role');
+        abort_if($user->role?->slug === 'super_admin', 403, 'The Super Admin account cannot be deleted.');
+
         if ($user->id === $request->user()->id) {
             return back()->withErrors(['user' => 'You cannot delete your own account.']);
-        }
-
-        $user->loadMissing('role');
-        if ($user->role?->slug === 'super_admin') {
-            $superAdminCount = User::whereHas('role', fn ($q) => $q->where('slug', 'super_admin'))->count();
-            if ($superAdminCount <= 1) {
-                return back()->withErrors(['user' => 'Cannot delete the only Super Admin account.']);
-            }
         }
 
         $user->delete();

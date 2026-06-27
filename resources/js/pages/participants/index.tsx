@@ -35,7 +35,9 @@ export default function ParticipantsIndex({
     pendingBatches: PendingBatch[];
 }) {
     const { auth } = usePage<{ auth: Auth }>().props;
-    const isSuperAdmin = auth.permissions.includes('batches.view-all');
+    const canUpdate = auth.is_super_admin || auth.permissions.includes('participants.update');
+    const canDelete = auth.is_super_admin || auth.permissions.includes('participants.delete');
+    const canImport = auth.is_super_admin || auth.permissions.includes('participants.import');
 
     const [deleting, setDeleting] = useState<Participant | null>(null);
     const [bulkConfirm, setBulkConfirm] = useState(false);
@@ -92,19 +94,21 @@ export default function ParticipantsIndex({
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-semibold">Participants</h1>
                     <div className="flex items-center gap-2">
-                        {isSuperAdmin && count > 0 && (
+                        {canDelete && count > 0 && (
                             <Button variant="destructive" onClick={() => setBulkConfirm(true)}>
                                 <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({count})
                             </Button>
                         )}
-                        {isSuperAdmin && (
+                        {canDelete && (
                             <Button variant="destructive" onClick={() => setDeleteAllConfirm(true)}>
                                 <Trash2 className="mr-2 h-4 w-4" /> Delete All
                             </Button>
                         )}
-                        <Button variant="outline" asChild>
-                            <Link href="/participants/import/form"><Upload className="mr-2 h-4 w-4" /> Import Excel</Link>
-                        </Button>
+                        {canImport && (
+                            <Button variant="outline" asChild>
+                                <Link href="/participants/import/form"><Upload className="mr-2 h-4 w-4" /> Import Excel</Link>
+                            </Button>
+                        )}
                         {/* <Button asChild>
                             <Link href="/participants/create"><Plus className="mr-2 h-4 w-4" /> Add Participant</Link>
                         </Button> */}
@@ -170,14 +174,14 @@ export default function ParticipantsIndex({
                     <table className="w-full text-sm">
                         <thead className="border-b bg-muted/50">
                             <tr>
-                                {isSuperAdmin && (
+                                {canDelete && (
                                     <th className="w-10 px-4 py-3">
                                         <Checkbox
                                             checked={isAllSelected}
-                                            ref={(el) => { 
+                                            ref={(el) => {
                                                 if (el) {
                                                     (el as any).indeterminate = isIndeterminate;
-                                                } 
+                                                }
                                             }}
                                             onCheckedChange={toggleAll}
                                         />
@@ -192,14 +196,14 @@ export default function ParticipantsIndex({
                         <tbody>
                             {participants.data.length === 0 ? (
                                 <tr>
-                                    <td colSpan={isSuperAdmin ? 5 : 4} className="px-4 py-10 text-center text-muted-foreground">
+                                    <td colSpan={canDelete ? 5 : 4} className="px-4 py-10 text-center text-muted-foreground">
                                         No participants found.
                                     </td>
                                 </tr>
                             ) : (
                                 participants.data.map((p) => (
                                     <tr key={p.id} className="border-b last:border-0 transition-colors hover:bg-muted/30">
-                                        {isSuperAdmin && (
+                                        {canDelete && (
                                             <td className="px-4 py-3">
                                                 <Checkbox checked={selected.has(p.id)} onCheckedChange={() => toggle(p.id)} />
                                             </td>
@@ -215,28 +219,34 @@ export default function ParticipantsIndex({
                                                         <Eye className="h-4 w-4" />
                                                     </Link>
                                                 </Button>
-                                                {/* 3-dot menu */}
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem asChild>
-                                                            <Link href={`/participants/${p.id}/edit`}>
-                                                                <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-                                                            </Link>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuSeparator />
-                                                        <DropdownMenuItem
-                                                            className="text-destructive focus:text-destructive"
-                                                            onClick={() => setDeleting(p)}
-                                                        >
-                                                            <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
+                                                {/* 3-dot menu — only shown when user has at least one action */}
+                                                {(canUpdate || canDelete) && (
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                                <MoreHorizontal className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            {canUpdate && (
+                                                                <DropdownMenuItem asChild>
+                                                                    <Link href={`/participants/${p.id}/edit`}>
+                                                                        <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+                                                                    </Link>
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                            {canUpdate && canDelete && <DropdownMenuSeparator />}
+                                                            {canDelete && (
+                                                                <DropdownMenuItem
+                                                                    className="text-destructive focus:text-destructive"
+                                                                    onClick={() => setDeleting(p)}
+                                                                >
+                                                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

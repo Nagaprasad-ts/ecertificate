@@ -1,4 +1,5 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { ArrowLeft } from 'lucide-react';
 import type { SyntheticEvent } from 'react';
 import RoleForm from './partials/RoleForm';
 
@@ -17,15 +18,29 @@ export default function RolesCreate({ permissions }: { permissions: Record<strin
 
     return (
         <>
-            <Head title="Add Role" />
+            <Head title="Create Role" />
             <div className="p-6">
-                <h1 className="mb-6 text-2xl font-semibold">Add Role</h1>
+                <Link
+                    href="/admin/roles"
+                    className="mb-5 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to roles
+                </Link>
+
+                <div className="mb-8">
+                    <h1 className="text-xl font-semibold">Create role</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Define a role and assign the permissions it grants.
+                    </p>
+                </div>
+
                 <RoleForm
                     data={data}
                     errors={errors}
                     processing={processing}
                     permissions={permissions}
-                    submitLabel="Create Role"
+                    submitLabel="Create role"
                     onSubmit={submit}
                     onChange={(key, value) => setData(key, value)}
                 />
@@ -38,6 +53,6 @@ RolesCreate.layout = {
     breadcrumbs: [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Roles', href: '/admin/roles' },
-        { title: 'Add Role', href: '/admin/roles/create' },
+        { title: 'Create Role', href: '/admin/roles/create' },
     ],
 };

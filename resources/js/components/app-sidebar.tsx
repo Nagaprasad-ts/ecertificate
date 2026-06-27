@@ -126,7 +126,7 @@ export function AppSidebar() {
                         </SidebarMenu>
                     </SidebarGroup>
                 )}
-                {isSuperAdmin && (
+                {(isSuperAdmin || permissions.has('events.read')) && (
                     <Collapsible defaultOpen={isCurrentUrl('/events/archived')} className="group/collapsible">
                         <SidebarGroup className="px-2 py-0">
                             <SidebarGroupLabel asChild>

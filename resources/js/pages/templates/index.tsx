@@ -13,7 +13,9 @@ type Template = { id: number; name: string; template_file: string };
 
 export default function TemplatesIndex({ templates }: { templates: Template[] }) {
     const { auth } = usePage<{ auth: Auth }>().props;
-    const isSuperAdmin = (auth.user as any).role?.slug === 'super_admin';
+    const canCreate = auth.is_super_admin || auth.permissions.includes('templates.create');
+    const canUpdate = auth.is_super_admin || auth.permissions.includes('templates.update');
+    const canDelete = auth.is_super_admin || auth.permissions.includes('templates.delete');
 
     const [search, setSearch]         = useState('');
     const [deleting, setDeleting]     = useState<Template | null>(null);
@@ -51,14 +53,16 @@ export default function TemplatesIndex({ templates }: { templates: Template[] })
                     searchPlaceholder="Search by name or file…"
                     actions={
                         <>
-                            {isSuperAdmin && count > 0 && (
+                            {canDelete && count > 0 && (
                                 <Button variant="destructive" onClick={() => setBulkConfirm(true)}>
                                     <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({count})
                                 </Button>
                             )}
-                            <Button asChild>
-                                <Link href="/templates/create"><Plus className="mr-2 h-4 w-4" /> Add Template</Link>
-                            </Button>
+                            {canCreate && (
+                                <Button asChild>
+                                    <Link href="/templates/create"><Plus className="mr-2 h-4 w-4" /> Add Template</Link>
+                                </Button>
+                            )}
                         </>
                     }
                 />
@@ -67,7 +71,7 @@ export default function TemplatesIndex({ templates }: { templates: Template[] })
                     <table className="w-full text-sm">
                         <thead className="border-b bg-muted/50">
                             <tr>
-                                {isSuperAdmin && (
+                                {canDelete && (
                                     <th className="w-10 px-4 py-3">
                                         <Checkbox
                                             checked={isAllSelected}
@@ -84,20 +88,20 @@ export default function TemplatesIndex({ templates }: { templates: Template[] })
                         <tbody>
                             {templates.length === 0 ? (
                                 <tr>
-                                    <td colSpan={isSuperAdmin ? 4 : 3} className="px-4 py-10 text-center text-muted-foreground">
+                                    <td colSpan={canDelete ? 4 : 3} className="px-4 py-10 text-center text-muted-foreground">
                                         No templates yet. Add your first template.
                                     </td>
                                 </tr>
                             ) : visible.length === 0 ? (
                                 <tr>
-                                    <td colSpan={isSuperAdmin ? 4 : 3} className="px-4 py-10 text-center text-muted-foreground">
+                                    <td colSpan={canDelete ? 4 : 3} className="px-4 py-10 text-center text-muted-foreground">
                                         No templates match <strong>"{search}"</strong>.
                                     </td>
                                 </tr>
                             ) : (
                                 visible.map((tpl) => (
                                     <tr key={tpl.id} className="border-b last:border-0 transition-colors hover:bg-muted/30">
-                                        {isSuperAdmin && (
+                                        {canDelete && (
                                             <td className="px-4 py-3">
                                                 <Checkbox checked={selected.has(tpl.id)} onCheckedChange={() => toggle(tpl.id)} />
                                             </td>
@@ -105,19 +109,25 @@ export default function TemplatesIndex({ templates }: { templates: Template[] })
                                         <td className="px-4 py-3 font-medium">{tpl.name}</td>
                                         <td className="max-w-sm truncate px-4 py-3 font-mono text-xs text-muted-foreground">{tpl.template_file}</td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center justify-end gap-2">
-                                                {isSuperAdmin && (
-                                                    <Button variant="secondary" size="sm" asChild>
-                                                        <Link href={`/templates/${tpl.id}/preview`} target="_blank"><Eye className="h-3.5 w-3.5" /></Link>
-                                                    </Button>
-                                                )}
-                                                <Button variant="outline" size="sm" asChild>
-                                                    <Link href={`/templates/${tpl.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
-                                                </Button>
-                                                <Button variant="destructive" size="sm" onClick={() => setDeleting(tpl)}>
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </div>
+                                            {(canUpdate || canDelete) && (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {canUpdate && (
+                                                        <Button variant="secondary" size="sm" asChild>
+                                                            <Link href={`/templates/${tpl.id}/preview`} target="_blank"><Eye className="h-3.5 w-3.5" /></Link>
+                                                        </Button>
+                                                    )}
+                                                    {canUpdate && (
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/templates/${tpl.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
+                                                        </Button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <Button variant="destructive" size="sm" onClick={() => setDeleting(tpl)}>
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

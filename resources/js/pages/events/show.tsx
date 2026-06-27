@@ -1,4 +1,4 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { CalendarDays, LayoutGrid, LayoutList, Pencil, Plus, Search, Settings2, Trash2, Users, X } from 'lucide-react';
 import { useState } from 'react';
 
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { Auth } from '@/types';
 
 type LogoData = { id: number; logo_name: string; logo: string };
 
@@ -39,6 +40,12 @@ type Props = {
 const VIEW_KEY = 'editions-view';
 
 export default function EventsShow({ event, templates }: Props) {
+    const { auth } = usePage<{ auth: Auth }>().props;
+    const canEditEvent     = auth.is_super_admin || auth.permissions.includes('events.update');
+    const canAddEdition    = auth.is_super_admin || auth.permissions.includes('editions.create');
+    const canEditEdition   = auth.is_super_admin || auth.permissions.includes('editions.update');
+    const canDeleteEdition = auth.is_super_admin;
+
     const [deletingEdition, setDeletingEdition] = useState<Edition | null>(null);
     const [editingEdition, setEditingEdition]   = useState<Edition | null>(null);
     const [editTemplateIds, setEditTemplateIds] = useState<number[]>([]);
@@ -127,14 +134,18 @@ export default function EventsShow({ event, templates }: Props) {
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href={`/events/${event.id}/edit`}>
-                                <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
-                            </Link>
-                        </Button>
-                        <Button size="sm" onClick={() => setShowForm(true)}>
-                            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Edition
-                        </Button>
+                        {canEditEvent && (
+                            <Button variant="outline" size="sm" asChild>
+                                <Link href={`/events/${event.id}/edit`}>
+                                    <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+                                </Link>
+                            </Button>
+                        )}
+                        {canAddEdition && (
+                            <Button size="sm" onClick={() => setShowForm(true)}>
+                                <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Edition
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -260,14 +271,18 @@ export default function EventsShow({ event, templates }: Props) {
                                             <span className="text-lg font-bold">{ed.year}</span>
                                         </div>
                                         <div className="flex items-center gap-1">
-                                            <button type="button" onClick={() => openEditEdition(ed)}
-                                                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
-                                                <Settings2 className="h-4 w-4" />
-                                            </button>
-                                            <button type="button" onClick={() => setDeletingEdition(ed)}
-                                                className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
+                                            {canEditEdition && (
+                                                <button type="button" onClick={() => openEditEdition(ed)}
+                                                    className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                                                    <Settings2 className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                            {canDeleteEdition && (
+                                                <button type="button" onClick={() => setDeletingEdition(ed)}
+                                                    className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
 
@@ -368,12 +383,16 @@ export default function EventsShow({ event, templates }: Props) {
                                                     <Button size="sm" variant="outline" asChild>
                                                         <Link href={`/participants?event_edition_id=${ed.id}`}>Manage</Link>
                                                     </Button>
-                                                    <Button size="sm" variant="outline" onClick={() => openEditEdition(ed)}>
-                                                        <Settings2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button size="sm" variant="destructive" onClick={() => setDeletingEdition(ed)}>
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
+                                                    {canEditEdition && (
+                                                        <Button size="sm" variant="outline" onClick={() => openEditEdition(ed)}>
+                                                            <Settings2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    )}
+                                                    {canDeleteEdition && (
+                                                        <Button size="sm" variant="destructive" onClick={() => setDeletingEdition(ed)}>
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

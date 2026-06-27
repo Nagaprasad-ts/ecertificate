@@ -15,7 +15,9 @@ const VIEW_KEY = 'signatures-view';
 
 export default function SignaturesIndex({ signatures }: { signatures: Signature[] }) {
     const { auth } = usePage<{ auth: Auth }>().props;
-    const isSuperAdmin = (auth.user as any).role?.slug === 'super_admin';
+    const canCreate = auth.is_super_admin || auth.permissions.includes('signatures.create');
+    const canUpdate = auth.is_super_admin || auth.permissions.includes('signatures.update');
+    const canDelete = auth.is_super_admin || auth.permissions.includes('signatures.delete');
 
     const [view, setView]       = useState<'grid' | 'list'>(() =>
         (localStorage.getItem(VIEW_KEY) as 'grid' | 'list') ?? 'grid',
@@ -64,14 +66,16 @@ export default function SignaturesIndex({ signatures }: { signatures: Signature[
                     onViewChange={switchView}
                     actions={
                         <>
-                            {isSuperAdmin && count > 0 && (
+                            {canDelete && count > 0 && (
                                 <Button variant="destructive" onClick={() => setBulkConfirm(true)}>
                                     <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({count})
                                 </Button>
                             )}
-                            <Button asChild>
-                                <Link href="/signatures/create"><Plus className="mr-2 h-4 w-4" /> Add Signature</Link>
-                            </Button>
+                            {canCreate && (
+                                <Button asChild>
+                                    <Link href="/signatures/create"><Plus className="mr-2 h-4 w-4" /> Add Signature</Link>
+                                </Button>
+                            )}
                         </>
                     }
                 />
@@ -93,7 +97,7 @@ export default function SignaturesIndex({ signatures }: { signatures: Signature[
                                 className="group relative flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
                             >
                                 {/* Checkbox overlay */}
-                                {isSuperAdmin && (
+                                {canDelete && (
                                     <div className="absolute left-3 top-3">
                                         <Checkbox
                                             checked={selected.has(sig.id)}
@@ -121,14 +125,20 @@ export default function SignaturesIndex({ signatures }: { signatures: Signature[
                                 </div>
 
                                 {/* Actions */}
-                                <div className="mt-auto flex gap-2">
-                                    <Button variant="outline" size="sm" className="flex-1" asChild>
-                                        <Link href={`/signatures/${sig.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
-                                    </Button>
-                                    <Button variant="destructive" size="sm" className="flex-1" onClick={() => setDeleting(sig)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                </div>
+                                {(canUpdate || canDelete) && (
+                                    <div className="mt-auto flex gap-2">
+                                        {canUpdate && (
+                                            <Button variant="outline" size="sm" className="flex-1" asChild>
+                                                <Link href={`/signatures/${sig.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
+                                            </Button>
+                                        )}
+                                        {canDelete && (
+                                            <Button variant="destructive" size="sm" className="flex-1" onClick={() => setDeleting(sig)}>
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -138,7 +148,7 @@ export default function SignaturesIndex({ signatures }: { signatures: Signature[
                         <table className="w-full text-sm">
                             <thead className="border-b bg-muted/50">
                                 <tr>
-                                    {isSuperAdmin && (
+                                    {canDelete && (
                                         <th className="w-10 px-4 py-3">
                                             <Checkbox
                                                 checked={isAllSelected}
@@ -157,7 +167,7 @@ export default function SignaturesIndex({ signatures }: { signatures: Signature[
                             <tbody>
                                 {visible.map((sig) => (
                                     <tr key={sig.id} className="border-b last:border-0 transition-colors hover:bg-muted/30">
-                                        {isSuperAdmin && (
+                                        {canDelete && (
                                             <td className="px-4 py-3">
                                                 <Checkbox checked={selected.has(sig.id)} onCheckedChange={() => toggle(sig.id)} />
                                             </td>
@@ -169,14 +179,20 @@ export default function SignaturesIndex({ signatures }: { signatures: Signature[
                                         <td className="px-4 py-3 text-muted-foreground">{sig.designation}</td>
                                         <td className="px-4 py-3 text-muted-foreground">{sig.resignation_date ?? '—'}</td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Button variant="outline" size="sm" asChild>
-                                                    <Link href={`/signatures/${sig.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
-                                                </Button>
-                                                <Button variant="destructive" size="sm" onClick={() => setDeleting(sig)}>
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </div>
+                                            {(canUpdate || canDelete) && (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {canUpdate && (
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/signatures/${sig.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
+                                                        </Button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <Button variant="destructive" size="sm" onClick={() => setDeleting(sig)}>
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

@@ -48,14 +48,16 @@ export default function RolesIndex({ roles }: { roles: Role[] }) {
                                     <td className="px-4 py-3 text-center text-muted-foreground">{role.permissions_count}</td>
                                     <td className="px-4 py-3 text-center text-muted-foreground">{role.users_count}</td>
                                     <td className="px-4 py-3">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <Button variant="outline" size="sm" asChild>
-                                                <Link href={`/admin/roles/${role.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
-                                            </Button>
-                                            <Button variant="destructive" size="sm" onClick={() => setDeleting(role)} disabled={role.users_count > 0}>
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
+                                        {role.slug !== 'super_admin' && (
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Button variant="outline" size="sm" asChild>
+                                                    <Link href={`/admin/roles/${role.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
+                                                </Button>
+                                                <Button variant="destructive" size="sm" onClick={() => setDeleting(role)} disabled={role.users_count > 0}>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

@@ -41,7 +41,9 @@ function EditionCount({ count }: { count: number }) {
 
 export default function EventsIndex({ events }: { events: EventItem[] }) {
     const { auth } = usePage<{ auth: Auth }>().props;
-    const isSuperAdmin = (auth.user as Record<string, unknown> & { role?: { slug: string } })?.role?.slug === 'super_admin';
+    const canCreate = auth.is_super_admin || auth.permissions.includes('events.create');
+    const canUpdate = auth.is_super_admin || auth.permissions.includes('events.update');
+    const canArchive = auth.is_super_admin;
 
     const [view, setView]               = useState<'grid' | 'list'>(() =>
         (localStorage.getItem(VIEW_KEY) as 'grid' | 'list') ?? 'grid',
@@ -78,11 +80,13 @@ export default function EventsIndex({ events }: { events: EventItem[] }) {
                     view={view}
                     onViewChange={switchView}
                     actions={
-                        <Button asChild>
-                            <Link href="/events/create">
-                                <Plus className="mr-2 h-4 w-4" /> New Event
-                            </Link>
-                        </Button>
+                        canCreate ? (
+                            <Button asChild>
+                                <Link href="/events/create">
+                                    <Plus className="mr-2 h-4 w-4" /> New Event
+                                </Link>
+                            </Button>
+                        ) : undefined
                     }
                 />
 
@@ -90,9 +94,11 @@ export default function EventsIndex({ events }: { events: EventItem[] }) {
                 {events.length === 0 ? (
                     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
                         <p className="text-muted-foreground">No events yet.</p>
-                        <Button asChild className="mt-4">
-                            <Link href="/events/create"><Plus className="mr-2 h-4 w-4" /> Create your first event</Link>
-                        </Button>
+                        {canCreate && (
+                            <Button asChild className="mt-4">
+                                <Link href="/events/create"><Plus className="mr-2 h-4 w-4" /> Create your first event</Link>
+                            </Button>
+                        )}
                     </div>
                 ) : visible.length === 0 ? (
                     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
@@ -120,7 +126,7 @@ export default function EventsIndex({ events }: { events: EventItem[] }) {
                                 </div>
 
                                 {/* Archive — super admin only, shown on hover */}
-                                {isSuperAdmin && (
+                                {canArchive && (
                                     <button
                                         type="button"
                                         onClick={(e) => { e.preventDefault(); setArchiving(event); }}
@@ -166,16 +172,20 @@ export default function EventsIndex({ events }: { events: EventItem[] }) {
                                             <EditionCount count={event.editions_count} />
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Button variant="outline" size="sm" asChild>
-                                                    <Link href={`/events/${event.id}`}><Pencil className="h-3.5 w-3.5" /></Link>
-                                                </Button>
-                                                {isSuperAdmin && (
-                                                    <Button variant="outline" size="sm" onClick={() => setArchiving(event)} title="Archive event">
-                                                        <Archive className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                )}
-                                            </div>
+                                            {(canUpdate || canArchive) && (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {canUpdate && (
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/events/${event.id}`}><Pencil className="h-3.5 w-3.5" /></Link>
+                                                        </Button>
+                                                    )}
+                                                    {canArchive && (
+                                                        <Button variant="outline" size="sm" onClick={() => setArchiving(event)} title="Archive event">
+                                                            <Archive className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

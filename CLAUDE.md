@@ -277,7 +277,7 @@ Two middleware aliases in `bootstrap/app.php`:
 - **`super_admin`** — `role->slug === 'super_admin'`; gates the entire `/admin` prefix group (users, roles, permissions management)
 - **`permission:{slug}`** (`HasPermission`) — short-circuits immediately for `super_admin`, then calls `$user->hasPermission($slug)` for everyone else
 
-Controllers use `HasMiddleware` with `Middleware` objects for per-action gating (logos, signatures, templates, events, participants, certificates).
+Controllers use `HasMiddleware` with `Middleware` objects for per-action gating. `routes/web.php` carries **zero** `->middleware('permission:…')` calls — all permission gating lives in the controller. Routes only carry structural middleware (`auth`, `verified`, `super_admin` group).
 
 Permission slugs: `{resource}.{action}` e.g. `events.create`, `batches.set-window`.
 
@@ -287,7 +287,18 @@ Permission slugs: `{resource}.{action}` e.g. `events.create`, `batches.set-windo
 3. For non-CRUD feature gates, add an entry to `FEATURE_PERMISSIONS` in `app/Console/Commands/SyncPermissions.php`.
 4. Run `php artisan permissions:sync`.
 
-**`super_admin` is immutable** — `RoleController` blocks rename and deletion. Never add permission checks that bypass `is_super_admin` without also updating `HasPermission`.
+**`super_admin` is fully immutable** — `RoleController` blocks rename and deletion of the role. `UserController::edit/update/destroy` all call `abort_if($user->role?->slug === 'super_admin', 403)` as the first guard — the super admin user account cannot be edited or deleted by anyone, including other super admins. The users index hides the edit/delete buttons for that row on the frontend too. Never add permission checks that bypass `is_super_admin` without also updating `HasPermission`.
+
+**Frontend permission gating** — `HandleInertiaRequests::share()` exposes `auth.is_super_admin` (bool) and `auth.permissions` (string[] of slugs) to every page. All index pages gate action buttons using this shared data — never by re-checking `role?.slug`. The standard pattern:
+
+```tsx
+const { auth } = usePage<{ auth: Auth }>().props;
+const canCreate = auth.is_super_admin || auth.permissions.includes('resource.create');
+const canUpdate = auth.is_super_admin || auth.permissions.includes('resource.update');
+const canDelete = auth.is_super_admin || auth.permissions.includes('resource.delete');
+```
+
+Some actions are super-admin-only regardless of the permission system: archive/unarchive events, delete event editions, and delete events permanently (from the archived list). These use `const canArchive = auth.is_super_admin` with no permission fallback. The roles index also hides edit/delete for the `super_admin` role row itself (`role.slug !== 'super_admin'`). The "Archived Events" sidebar link is visible to anyone with `events.read`.
 
 ### Data model hierarchy
 
@@ -311,8 +322,8 @@ ImportBatch  (UUID PK: batch_id, failures JSON, email_window_from/to datetime)
 Events have an `archived_at` nullable timestamp. Archived events are hidden from the active list but certificates remain publicly accessible — participant queries never filter on `events.archived_at`.
 
 - `Event::scopeActive()` / `Event::scopeArchived()` — use these in any query that should respect archive state.
-- `POST /events/{event}/archive` and `POST /events/{event}/unarchive` — gated by `permission:events.update`.
-- Permanent delete (`destroy`) is intentionally only surfaced in the UI for already-archived events.
+- `POST /events/{event}/archive` and `POST /events/{event}/unarchive` — gated by `permission:events.update` on the backend, but the archive/unarchive buttons are **super admin only** in the UI (`canArchive = auth.is_super_admin`).
+- Permanent delete (`destroy`) is intentionally only surfaced in the UI for already-archived events, and only for super admins.
 - The import form (`importForm()`) passes `activeOnly: true` to the private `eventOptions()` helper, which applies `whereNull('archived_at')` — archived events must not appear in the import event dropdown. The participants index passes no flag so users can still filter existing participants by archived events.
 
 ### Template-driven Excel import validation
@@ -328,7 +339,7 @@ To add extra columns to a template: edit the template in the admin UI — the re
 
 ### Import/confirm workflow
 
-1. Upload `.xlsx` → `ParticipantController::import()` creates `ImportBatch`, inserts participants with `status = 'pending'`.
+1. Upload `.xlsx` → `ParticipantImportController::import()` delegates to `ParticipantImportService::processImport()`, which creates `ImportBatch` and inserts participants with `status = 'pending'`.
 2. Failures stored as JSON in `import_batches.failures` — not in session.
 3. Admin sets email window via `setEmailWindow()` — blocked when `failed_count > 0`.
 4. `confirmImport()` sends emails, flips participants to `status = 'active'`. Only allowed inside the active window.
@@ -371,6 +382,42 @@ Intelephense confuses Eloquent static methods with PHP built-ins and raises "Not
 | `$model->delete()` — "Expected 1. Found 0" | Intelephense invents phantom `static delete($id)` | Add `/** @method bool|null delete() */` above the class |
 
 `Participant` already has `scopeForBatch(Builder $query, string $batchId)` and the `@method` PHPDoc — check `app/Models/Participant.php` before adding similar fixes to other models.
+
+### Route file layout
+
+`routes/web.php` is a thin orchestrator — it registers public certificate routes and the `auth+verified` group, then delegates via `require`:
+
+| File | Owns |
+|---|---|
+| `routes/assets.php` | Logos, signatures, templates, template preview |
+| `routes/events.php` | Events (CRUD, archive/unarchive, bulk-destroy) + event editions |
+| `routes/participants.php` | Participants (CRUD, bulk-destroy) + certificate preview + all import routes |
+| `routes/admin.php` | Import batches, super-admin group (users/roles/permissions), email-logs, artisan-commands |
+
+Each domain file carries its own `use` imports. Never add `->middleware('permission:…')` to routes — put it in the controller's `HasMiddleware` instead.
+
+### Controller and service layout (participants domain)
+
+The original `ParticipantController` (18 methods) was split into three focused controllers and a service:
+
+| Class | Responsibility |
+|---|---|
+| `ParticipantController` | CRUD only: `index`, `create`, `store`, `edit`, `update`, `destroy`, `bulkDestroy`, `deleteAll` |
+| `ParticipantImportController` | Import workflow: `importForm`, `import`, `importResults`, `reImport`, `confirmImport`, `discardImport`, `setEmailWindow` |
+| `ImportBatchController` | Admin batch management: `index`, `destroy` |
+| `ParticipantImportService` | All import/confirm business logic; injected into both import controllers via constructor |
+
+`EventEditionController` middleware: `editions.create`, `editions.update`, `editions.delete` — but the delete button on `events/show.tsx` is **super admin only** in the UI regardless of the `editions.delete` permission. Edit event header + settings gear use `events.update` / `editions.update`; Add Edition uses `editions.create`.
+
+`ParticipantImportController::eventOptions()` always applies `whereNull('archived_at')` (active events only). `ParticipantController::eventOptions()` returns all events including archived (needed for the participants index filter).
+
+`CertificateController` owns all certificate-related methods: `data`, `show`, `preview`, `search`, `templatePreview`. The public `GET /certificate/search` route is handled here, not by `ParticipantController`.
+
+Form requests: `StoreParticipantRequest` (shared by `store` and `update`), `ImportParticipantRequest` (import file upload).
+
+### Test suite
+
+`tests/Pest.php` has `RefreshDatabase` enabled for both `Feature` and `Unit` suites — all 92/94 tests pass (2 skipped for disabled Fortify features). Post-login redirect is `route('participants.index')`, not `route('dashboard')` — auth tests reflect this. The `userWithPermission(...$slugs)` and `superAdmin()` global helpers in `Pest.php` create users with the correct role/permission setup for feature tests.
 
 ### Constraints
 
