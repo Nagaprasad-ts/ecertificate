@@ -1,34 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { Award, Clock, QrCode, ShieldCheck, Star } from 'lucide-react';
-
-const features = [
-    {
-        icon: ShieldCheck,
-        title: 'Authentic & Tamper-proof',
-        description: 'Every certificate carries a unique number that can only be verified against our records.',
-    },
-    {
-        icon: Clock,
-        title: 'Instant Results',
-        description: 'Verification takes seconds — enter the certificate number and get an immediate response.',
-    },
-    {
-        icon: QrCode,
-        title: 'Always Accessible',
-        description: 'Verified certificates are available online anytime, from any device.',
-    },
-    {
-        icon: Star,
-        title: 'Trusted by Institutions',
-        description: 'Issued by recognised colleges and institutions for events, competitions, and programmes.',
-    },
-];
-
-const steps = [
-    { number: '01', title: 'Locate your certificate number', body: 'Find the unique certificate number printed on your certificate or in your email.' },
-    { number: '02', title: 'Enter the number', body: 'Type or paste the certificate number into the verification search.' },
-    { number: '03', title: 'Instant confirmation', body: 'See the verified details — name, event, and issuing institution — in seconds.' },
-];
+import { Award, ShieldCheck } from 'lucide-react';
 
 const appName = import.meta.env.VITE_APP_NAME ?? 'Certificates NHEI';
 
@@ -37,7 +8,7 @@ export default function Welcome() {
         <>
             <Head title={appName} />
 
-            <div className="relative flex min-h-screen flex-col overflow-hidden bg-background text-foreground">
+            <div className="relative flex h-screen flex-col overflow-hidden bg-background text-foreground">
 
                 {/* ── Decorative background ── */}
                 <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
@@ -102,7 +73,7 @@ export default function Welcome() {
                 </header>
 
                 {/* ── Hero ── */}
-                <section className="flex flex-col items-center justify-center px-6 pb-20 pt-28 text-center">
+                <section className="flex flex-1 flex-col items-center justify-center px-6 text-center">
 
                     <div
                         className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary"
@@ -145,56 +116,6 @@ export default function Welcome() {
                     </div>
                 </section>
 
-                {/* ── Features ── */}
-                <section className="mx-auto w-full max-w-6xl px-6 pb-24">
-                    <div className="mb-12 text-center">
-                        <h2 className="text-3xl font-bold tracking-tight">Why verify with us?</h2>
-                        <p className="mt-3 text-muted-foreground">Every certificate is backed by a secure, tamper-proof record.</p>
-                    </div>
-                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                        {features.map(({ icon: Icon, title, description }) => (
-                            <div
-                                key={title}
-                                className="group rounded-2xl border border-border/60 bg-card p-6 transition-all hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10"
-                            >
-                                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
-                                    <Icon className="h-5 w-5" />
-                                </div>
-                                <h3 className="mb-2 font-semibold">{title}</h3>
-                                <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-
-                {/* ── How it works ── */}
-                <section className="border-t border-border/50 bg-muted/30 px-6 py-24">
-                    <div className="mx-auto max-w-4xl">
-                        <div className="mb-12 text-center">
-                            <h2 className="text-3xl font-bold tracking-tight">How verification works</h2>
-                            <p className="mt-3 text-muted-foreground">Three simple steps to confirm your certificate.</p>
-                        </div>
-                        <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
-                            {steps.map(({ number, title, body }) => (
-                                <div key={number} className="flex flex-col items-center text-center">
-                                    <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-primary/20 bg-primary/10 text-xl font-extrabold text-primary">
-                                        {number}
-                                    </div>
-                                    <h3 className="mb-2 font-semibold">{title}</h3>
-                                    <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                {/* ── Footer ── */}
-                <footer className="border-t border-border/50 px-6 py-8">
-                    <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 text-xs text-muted-foreground sm:flex-row">
-                        <span>© {new Date().getFullYear()} {appName} Platform. All rights reserved.</span>
-                        <Link href="/certificate/search" className="transition-colors hover:text-foreground">Verify Certificate</Link>
-                    </div>
-                </footer>
             </div>
 
             <style>{`
