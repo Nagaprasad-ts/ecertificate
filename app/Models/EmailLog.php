@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmailLog extends Model
 {
     protected $fillable = [
+        'sent_by',
         'batch_id',
         'event_id',
         'event_edition_id',
@@ -18,11 +20,18 @@ class EmailLog extends Model
         'status',
         'error_message',
         'sent_at',
+        'bounced_at',
     ];
 
     protected $casts = [
-        'sent_at' => 'datetime',
+        'sent_at'    => 'datetime',
+        'bounced_at' => 'datetime',
     ];
+
+    public function sender(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'sent_by');
+    }
 
     public function event(): BelongsTo
     {

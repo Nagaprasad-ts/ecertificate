@@ -34,7 +34,7 @@ class ParticipantImportService
             'imported_by' => Auth::id(),
         ]);
 
-        $import = new ParticipantsImport((int) $edition->id, $templateId, $edition, $batchId);
+        $import = new ParticipantsImport((int) $edition->id, $templateId, $edition, $batchId, Auth::id());
         Excel::import($import, $file);
 
         if (! empty($import->schemaErrors())) {
@@ -71,7 +71,7 @@ class ParticipantImportService
 
         Participant::pending()->forBatch($batchId)->delete();
 
-        $import = new ParticipantsImport((int) $editionId, (int) $batch->template_id, $edition, $batchId);
+        $import = new ParticipantsImport((int) $editionId, (int) $batch->template_id, $edition, $batchId, Auth::id());
         Excel::import($import, $file);
 
         if (! empty($import->schemaErrors())) {
@@ -99,8 +99,10 @@ class ParticipantImportService
 
         Participant::pending()->forBatch($batchId)->update(['status' => 'active']);
 
+        $sentBy = $batch->imported_by;
+
         foreach ($participants as $participant) {
-            SendCertificateEmail::dispatch($participant, $batchId);
+            SendCertificateEmail::dispatch($participant, $batchId, $sentBy);
         }
 
         return $participants->count();

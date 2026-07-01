@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CertificateController;
+use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -8,10 +9,30 @@ Route::inertia('/', 'welcome', [
     'canRegister' => Features::enabled(Features::registration()),
 ])->name('home');
 
+// Webhook — excluded from CSRF in bootstrap/app.php
+Route::post('/webhooks/ses', [WebhookController::class, 'sesNotification']);
+
 // Public routes — no login required
 Route::get('/certificate/search', [CertificateController::class, 'search'])->name('certificate.search');
 Route::get('/certificate/{certificateNo}/data', [CertificateController::class, 'data'])->name('certificate.data');
 Route::get('/certificate/{certificateNo}',      [CertificateController::class, 'show'])->name('certificate.show');
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/notifications', function () {
+        $notifications = auth()->user()->notifications()->latest()->paginate(20);
+        return inertia('notifications/index', compact('notifications'));
+    })->name('notifications.index');
+
+    Route::post('/notifications/{id}/read', function (string $id) {
+        auth()->user()->notifications()->where('id', $id)->update(['read_at' => now()]);
+        return back();
+    })->name('notifications.read');
+
+    Route::post('/notifications/read-all', function () {
+        auth()->user()->unreadNotifications()->update(['read_at' => now()]);
+        return back();
+    })->name('notifications.read-all');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');

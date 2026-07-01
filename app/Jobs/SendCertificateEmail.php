@@ -20,6 +20,7 @@ class SendCertificateEmail implements ShouldQueue
     public function __construct(
         public readonly Participant $participant,
         public readonly string $batchId,
+        public readonly ?int $sentBy = null,
     ) {}
 
     public function handle(): void
@@ -39,6 +40,7 @@ class SendCertificateEmail implements ShouldQueue
             ));
 
         EmailLog::create([
+            'sent_by'          => $this->sentBy,
             'batch_id'         => $this->batchId,
             'event_id'         => $this->participant->event_id,
             'event_edition_id' => $this->participant->event_edition_id,
@@ -58,6 +60,7 @@ class SendCertificateEmail implements ShouldQueue
         $eventLabel = trim(($this->participant->edition?->event?->event_name ?? 'Event') . ' ' . ($this->participant->edition?->year ?? ''));
 
         EmailLog::create([
+            'sent_by'          => $this->sentBy,
             'batch_id'         => $this->batchId,
             'event_id'         => $this->participant->event_id,
             'event_edition_id' => $this->participant->event_edition_id,

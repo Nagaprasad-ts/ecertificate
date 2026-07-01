@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreParticipantRequest;
+use App\Http\Requests\UpdateParticipantRequest;
+use App\Jobs\SendCertificateEmail;
 use App\Models\Event;
 use App\Models\EventEdition;
 use App\Models\ImportBatch;
@@ -14,6 +16,7 @@ use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,15 +27,18 @@ class ParticipantController extends Controller implements HasMiddleware
         return [
             new Middleware('permission:participants.read', only: ['index']),
             new Middleware('permission:participants.create', only: ['create', 'store']),
-            new Middleware('permission:participants.update', only: ['edit', 'update']),
+            new Middleware('permission:participants.update', only: ['edit', 'update', 'resendEmail']),
             new Middleware('permission:participants.delete', only: ['destroy', 'bulkDestroy', 'deleteAll']),
         ];
     }
 
     public function index(Request $request): Response
     {
+        $isSuperAdmin = Auth::user()?->role?->slug === 'super_admin';
+
         $participants = Participant::with('edition.event')
             ->active()
+            ->when(! $isSuperAdmin, fn ($q) => $q->where('created_by', Auth::id()))
             ->when($request->event_edition_id, fn ($q) => $q->where('event_edition_id', $request->event_edition_id))
             ->when(
                 $request->event_id && ! $request->event_edition_id,
@@ -104,7 +110,8 @@ class ParticipantController extends Controller implements HasMiddleware
         $edition = EventEdition::with('event')->findOrFail($data['event_edition_id']);
         $data['event_id'] = $edition->event_id;
         $data['certificate_no'] = Participant::generateCertificateNo($edition);
-        $data['status'] = 'active';
+        $data['created_by']     = Auth::id();
+        $data['status']         = 'active';
 
         Participant::create($data);
 
@@ -115,6 +122,8 @@ class ParticipantController extends Controller implements HasMiddleware
 
     public function edit(Participant $participant): Response
     {
+        $this->authorizeOwnership($participant);
+
         return Inertia::render('participants/edit', [
             'participant' => $participant,
             'editions' => $this->editionOptions(),
@@ -122,8 +131,10 @@ class ParticipantController extends Controller implements HasMiddleware
         ]);
     }
 
-    public function update(StoreParticipantRequest $request, Participant $participant): RedirectResponse
+    public function update(UpdateParticipantRequest $request, Participant $participant): RedirectResponse
     {
+        $this->authorizeOwnership($participant);
+
         $participant->update($request->validated());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Participant updated successfully.']);
@@ -131,8 +142,28 @@ class ParticipantController extends Controller implements HasMiddleware
         return to_route('participants.index');
     }
 
+    public function resendEmail(Request $request, Participant $participant): RedirectResponse
+    {
+        $this->authorizeOwnership($participant);
+
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+        ]);
+
+        $participant->update(['email' => $validated['email']]);
+
+        $batchId = $participant->batch_id ?? (string) Str::uuid();
+        SendCertificateEmail::dispatch($participant->fresh(), $batchId, $participant->created_by);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Certificate email queued for delivery.']);
+
+        return to_route('participants.edit', $participant);
+    }
+
     public function destroy(Participant $participant): RedirectResponse
     {
+        $this->authorizeOwnership($participant);
+
         $participant->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Participant deleted successfully.']);
@@ -142,8 +173,14 @@ class ParticipantController extends Controller implements HasMiddleware
 
     public function bulkDestroy(Request $request): RedirectResponse
     {
-        $ids = $request->validate(['ids' => ['required', 'array'], 'ids.*' => ['integer']])['ids'];
-        Participant::destroy($ids);
+        $ids          = $request->validate(['ids' => ['required', 'array'], 'ids.*' => ['integer']])['ids'];
+        $isSuperAdmin = Auth::user()?->role?->slug === 'super_admin';
+
+        $query = Participant::whereIn('id', $ids);
+        if (! $isSuperAdmin) {
+            $query->where('created_by', Auth::id());
+        }
+        $query->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => count($ids).' participant(s) deleted.']);
 
@@ -152,7 +189,10 @@ class ParticipantController extends Controller implements HasMiddleware
 
     public function deleteAll(Request $request): RedirectResponse
     {
+        $isSuperAdmin = Auth::user()?->role?->slug === 'super_admin';
+
         $query = Participant::active()
+            ->when(! $isSuperAdmin, fn ($q) => $q->where('created_by', Auth::id()))
             ->when($request->event_edition_id, fn ($q) => $q->where('event_edition_id', $request->event_edition_id))
             ->when($request->search, fn ($q) => $q->where(function ($inner) use ($request) {
                 $inner->where('name', 'like', "%{$request->search}%")
@@ -167,6 +207,15 @@ class ParticipantController extends Controller implements HasMiddleware
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$count} participant(s) deleted."]);
 
         return to_route('participants.index');
+    }
+
+    private function authorizeOwnership(Participant $participant): void
+    {
+        $isSuperAdmin = Auth::user()?->role?->slug === 'super_admin';
+
+        if (! $isSuperAdmin && $participant->created_by !== Auth::id()) {
+            abort(403);
+        }
     }
 
     private function eventOptions(): Collection

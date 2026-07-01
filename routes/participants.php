@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 Route::delete('participants/bulk-destroy', [ParticipantController::class, 'bulkDestroy'])->name('participants.bulk-destroy');
 Route::delete('participants/delete-all',   [ParticipantController::class, 'deleteAll'])->name('participants.delete-all');
 Route::resource('participants', ParticipantController::class)->except(['show']);
+Route::post('participants/{participant}/resend-email', [ParticipantController::class, 'resendEmail'])->name('participants.resend-email');
 
 // Certificate preview — permission enforced by CertificateController::middleware()
 Route::get('certificates/{participant}/preview', [CertificateController::class, 'preview'])->name('certificates.preview');

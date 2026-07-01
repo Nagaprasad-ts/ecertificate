@@ -37,6 +37,7 @@ class ParticipantsImport implements ToCollection, WithHeadingRow
         private int $templateId,
         private EventEdition $edition,
         private string $batchId,
+        private ?int $createdBy = null,
     ) {
         $this->schema = Template::find($templateId)?->fullExpectedColumns() ?? [];
     }
@@ -88,6 +89,7 @@ class ParticipantsImport implements ToCollection, WithHeadingRow
             );
 
             Participant::create([
+                'created_by'       => $this->createdBy,
                 'event_edition_id' => $this->editionId,
                 'event_id'         => $this->edition->event_id,
                 'template_id'      => $this->templateId,

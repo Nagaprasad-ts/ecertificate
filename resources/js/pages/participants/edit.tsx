@@ -1,11 +1,11 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import { FormEvent } from 'react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Send } from 'lucide-react';
+import { FormEvent, useState } from 'react';
 
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Edition     = { id: number; label: string; template_ids: number[] };
 type Template    = { id: number; name: string };
@@ -30,22 +30,30 @@ export default function ParticipantsEdit({
     templates: Template[];
 }) {
     const { data, setData, put, errors, processing } = useForm({
-        event_edition_id: String(participant.event_edition_id),
-        template_id:      String(participant.template_id),
-        name:             participant.name,
-        email:            participant.email,
-        usn:              participant.usn ?? '',
-        phone_no:         participant.phone_no ?? '',
+        name:     participant.name,
+        email:    participant.email,
+        usn:      participant.usn ?? '',
+        phone_no: participant.phone_no ?? '',
     });
 
-    const selectedEdition = editions.find((e) => String(e.id) === data.event_edition_id);
-    const visibleTemplates = selectedEdition?.template_ids.length
-        ? templates.filter((t) => selectedEdition.template_ids.includes(t.id))
-        : templates;
+    const currentEdition  = editions.find((e) => e.id === participant.event_edition_id);
+    const currentTemplate = templates.find((t) => t.id === participant.template_id);
+
+    const emailChanged = data.email.trim() !== participant.email.trim();
+    const [resending, setResending] = useState(false);
 
     function submit(e: FormEvent) {
         e.preventDefault();
         put(`/participants/${participant.id}`);
+    }
+
+    function resendEmail() {
+        setResending(true);
+        router.post(
+            `/participants/${participant.id}/resend-email`,
+            { email: data.email },
+            { onFinish: () => setResending(false) },
+        );
     }
 
     return (
@@ -60,28 +68,16 @@ export default function ParticipantsEdit({
                 <form onSubmit={submit} className="max-w-lg space-y-4">
                     <div className="space-y-1">
                         <Label>Event Edition</Label>
-                        <Select value={data.event_edition_id} onValueChange={(v) => setData('event_edition_id', v)}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {editions.map((ed) => (
-                                    <SelectItem key={ed.id} value={String(ed.id)}>{ed.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <InputError message={errors.event_edition_id} />
+                        <div className="flex h-9 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
+                            {currentEdition?.label ?? '—'}
+                        </div>
                     </div>
 
                     <div className="space-y-1">
                         <Label>Template</Label>
-                        <Select value={data.template_id} onValueChange={(v) => setData('template_id', v)}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {visibleTemplates.map((t) => (
-                                    <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <InputError message={errors.template_id} />
+                        <div className="flex h-9 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
+                            {currentTemplate?.name ?? '—'}
+                        </div>
                     </div>
 
                     <div className="space-y-1">
@@ -92,7 +88,27 @@ export default function ParticipantsEdit({
 
                     <div className="space-y-1">
                         <Label htmlFor="email">Email</Label>
-                        <Input id="email" type="email" value={data.email} onChange={(e) => setData('email', e.target.value)} />
+                        <div className="flex gap-2">
+                            <Input
+                                id="email"
+                                type="email"
+                                value={data.email}
+                                onChange={(e) => setData('email', e.target.value)}
+                                className="flex-1"
+                            />
+                            {emailChanged && (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={resendEmail}
+                                    disabled={resending || processing}
+                                    title="Save new email and resend certificate"
+                                >
+                                    <Send className="mr-2 h-3.5 w-3.5" />
+                                    {resending ? 'Sending…' : 'Resend Email'}
+                                </Button>
+                            )}
+                        </div>
                         <InputError message={errors.email} />
                     </div>
 

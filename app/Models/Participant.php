@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 class Participant extends Model
 {
     protected $fillable = [
+        'created_by',
         'event_id',
         'event_edition_id',
         'template_id',

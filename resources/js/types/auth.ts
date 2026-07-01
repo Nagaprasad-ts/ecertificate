@@ -17,10 +17,24 @@ export type User = {
     [key: string]: unknown;
 };
 
+export type AppNotification = {
+    id: string;
+    data: {
+        message: string;
+        reason: string | null;
+        email_log_id: number;
+        to_address: string;
+        to_name: string;
+        subject: string;
+    };
+    created_at: string;
+};
+
 export type Auth = {
     user: User;
     permissions: string[];
     is_super_admin: boolean;
+    unread_notifications: AppNotification[];
 };
 
 export type TwoFactorSetupData = {
