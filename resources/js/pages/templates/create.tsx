@@ -25,13 +25,23 @@ export default function TemplatesCreate() {
         post('/templates');
     }
 
+    function toKey(label: string) {
+        return label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    }
+
     function addColumn() {
         setData('expected_columns', [...data.expected_columns, { key: '', label: '', required: true }]);
     }
 
-    function updateColumn(index: number, field: keyof ExpectedColumn, value: string | boolean) {
+    function updateColumnLabel(index: number, label: string) {
         const next = [...data.expected_columns];
-        next[index] = { ...next[index], [field]: value };
+        next[index] = { ...next[index], label, key: toKey(label) };
+        setData('expected_columns', next);
+    }
+
+    function updateColumnRequired(index: number, required: boolean) {
+        const next = [...data.expected_columns];
+        next[index] = { ...next[index], required };
         setData('expected_columns', next);
     }
 
@@ -83,36 +93,31 @@ export default function TemplatesCreate() {
                         </div>
 
                         {data.expected_columns.map((col, i) => (
-                            <div key={i} className="flex items-end gap-2">
+                            <div key={i} className="flex items-start gap-2">
                                 <div className="flex-1 space-y-1">
-                                    <Label className="text-xs">Column key</Label>
-                                    <Input
-                                        value={col.key}
-                                        onChange={(e) =>
-                                            updateColumn(i, 'key', e.target.value.toLowerCase().replace(/\s+/g, '_'))
-                                        }
-                                        placeholder="department"
-                                    />
-                                    <InputError message={(errors as Record<string, string>)[`expected_columns.${i}.key`]} />
-                                </div>
-                                <div className="flex-1 space-y-1">
-                                    <Label className="text-xs">Display label</Label>
+                                    <Label className="text-xs">Column Name</Label>
                                     <Input
                                         value={col.label}
-                                        onChange={(e) => updateColumn(i, 'label', e.target.value)}
-                                        placeholder="Department"
+                                        onChange={(e) => updateColumnLabel(i, e.target.value)}
+                                        placeholder="e.g. Race Distance"
                                     />
+                                    {col.key && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Template variable: <code className="font-mono">{`{{${col.key}}}`}</code>
+                                        </p>
+                                    )}
+                                    <InputError message={(errors as Record<string, string>)[`expected_columns.${i}.key`]} />
                                     <InputError message={(errors as Record<string, string>)[`expected_columns.${i}.label`]} />
                                 </div>
-                                <div className="flex shrink-0 items-center gap-1.5 pb-2">
+                                <div className="flex shrink-0 items-center gap-1.5 pt-7">
                                     <Checkbox
                                         id={`req-${i}`}
                                         checked={col.required}
-                                        onCheckedChange={(checked) => updateColumn(i, 'required', !!checked)}
+                                        onCheckedChange={(checked) => updateColumnRequired(i, !!checked)}
                                     />
                                     <Label htmlFor={`req-${i}`} className="text-xs">Required</Label>
                                 </div>
-                                <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => removeColumn(i)}>
+                                <Button type="button" variant="outline" size="sm" className="mt-5 shrink-0" onClick={() => removeColumn(i)}>
                                     <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                             </div>

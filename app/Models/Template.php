@@ -13,12 +13,12 @@ class Template extends Model
         'expected_columns' => 'array',
     ];
 
-    /** Always-required columns for every template's Excel import. */
+    /** Always-required columns for every template's Excel import. label = Excel header, key = internal variable. */
     public const BASE_COLUMNS = [
-        ['key' => 'name',  'label' => 'Name',  'required' => true],
-        ['key' => 'email', 'label' => 'Email', 'required' => true],
-        ['key' => 'usn',   'label' => 'USN',   'required' => true],
-        ['key' => 'phone', 'label' => 'Phone', 'required' => true],
+        ['key' => 'name',  'label' => 'name',  'required' => true],
+        ['key' => 'email', 'label' => 'email', 'required' => true],
+        ['key' => 'usn',   'label' => 'usn',   'required' => true],
+        ['key' => 'phone', 'label' => 'phone', 'required' => true],
     ];
 
     public function editions(): HasMany

@@ -60,6 +60,9 @@ class ParticipantsImport implements ToCollection, WithHeadingRow
             return; // Don't process any rows when the file structure doesn't match the template.
         }
 
+        // Build Excel-header (label) → template variable (key) map for custom column remapping.
+        $labelToKey = array_column($this->schema, 'key', 'label');
+
         foreach ($rows as $row) {
             $this->rowNumber++;
             $row = array_map(fn ($v) => is_string($v) ? trim($v) : $v, $row->toArray());
@@ -82,11 +85,13 @@ class ParticipantsImport implements ToCollection, WithHeadingRow
                 continue;
             }
 
-            // Custom (non-core) columns → JSON data field
-            $extra = array_filter(
-                array_diff_key($row, array_flip(array_keys($this->coreFieldMap))),
-                fn ($v) => $v !== null && $v !== '',
-            );
+            // Custom (non-core) columns → JSON data field, stored by template key (not Excel header).
+            $extra = [];
+            foreach (array_diff_key($row, array_flip(array_keys($this->coreFieldMap))) as $label => $value) {
+                if ($value !== null && $value !== '') {
+                    $extra[$labelToKey[$label] ?? $label] = $value;
+                }
+            }
 
             Participant::create([
                 'created_by'       => $this->createdBy,

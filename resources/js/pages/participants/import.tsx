@@ -1,5 +1,5 @@
 ﻿import { Head, Link, useForm } from '@inertiajs/react';
-import { AlertTriangle, CheckCircle2, Circle, FileSpreadsheet, Info, MinusCircle, XCircle } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, Info, MinusCircle, XCircle } from 'lucide-react';
 import { useMemo } from 'react';
 import type { SyntheticEvent } from 'react';
 
@@ -16,10 +16,10 @@ type ExpectedColumn  = { key: string; label: string; required: boolean };
 type Template        = { id: number; name: string; expected_columns: ExpectedColumn[] | null };
 
 const BASE_COLUMNS: ExpectedColumn[] = [
-    { key: 'name',  label: 'Name',  required: true },
-    { key: 'email', label: 'Email', required: true },
-    { key: 'usn',   label: 'USN',   required: true },
-    { key: 'phone', label: 'Phone', required: true },
+    { key: 'name',  label: 'name',  required: true },
+    { key: 'email', label: 'email', required: true },
+    { key: 'usn',   label: 'usn',   required: true },
+    { key: 'phone', label: 'phone', required: true },
 ];
 
 function parseSchemaError(message?: string): { missing: string[]; unknown: string[] } | null {
@@ -160,7 +160,7 @@ export default function ParticipantsImport({
                     </div>
 
                     {hasSchemaError && schemaError && (
-                        <div className="rounded-lg border border-destructive bg-destructive-foreground p-4">
+                        <div className="rounded-lg border border-destructive bg-destructive/10 p-4">
                             <div className="mb-4 flex items-start gap-3">
                                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
                                 <div>
@@ -175,20 +175,24 @@ export default function ParticipantsImport({
 
                             <div className="grid gap-3 sm:grid-cols-2">
                                 {schemaError.missing.length > 0 && (
-                                    <div className="rounded-md border bg-background p-4">
-                                        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                                    <div className="rounded-md border border-border bg-card p-4">
+                                        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
                                             <MinusCircle className="h-4 w-4 text-destructive" />
                                             Missing required {schemaError.missing.length === 1 ? 'column' : 'columns'}
                                         </div>
                                         <div className="flex flex-wrap gap-2">
-                                            {schemaError.missing.map((key) => (
-                                                <span
-                                                    key={key}
-                                                    className="inline-flex items-center rounded-md border bg-muted px-2.5 py-1 font-mono text-sm font-medium text-foreground"
-                                                >
-                                                    {key}
-                                                </span>
-                                            ))}
+                                            {schemaError.missing.map((item) => {
+                                                const col = allColumns.find((c) => c.key === item || c.label === item);
+                                                return (
+                                                    <span
+                                                        key={item}
+                                                        className="inline-flex flex-col rounded-md border bg-muted px-2.5 py-1"
+                                                    >
+                                                        <span className="text-sm font-medium text-foreground">{col?.label ?? item}</span>
+                                                        {col?.key && <span className="font-mono text-xs text-muted-foreground">{col.key}</span>}
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
                                         <p className="mt-3 text-sm text-muted-foreground">
                                             Add {schemaError.missing.length === 1 ? 'this header' : 'these headers'} to row 1 of your sheet.
@@ -197,8 +201,8 @@ export default function ParticipantsImport({
                                 )}
 
                                 {schemaError.unknown.length > 0 && (
-                                    <div className="rounded-md border bg-background p-4">
-                                        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                                    <div className="rounded-md border border-border bg-card p-4">
+                                        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
                                             <XCircle className="h-4 w-4 text-muted-foreground" />
                                             Unexpected {schemaError.unknown.length === 1 ? 'column' : 'columns'}
                                         </div>
@@ -243,44 +247,63 @@ export default function ParticipantsImport({
                         )}
 
                         {selectedTemplate && (
-                            <div className="space-y-1.5">
-                                <div className="grid gap-1.5 sm:grid-cols-2">
-                                    {allColumns.map((col) => {
-                                        const isMissing = missingSet.has(col.key);
-                                        
-                                        return (
-                                            <div
-                                                key={col.key}
-                                                className={`flex items-center justify-between rounded-md px-2 py-1.5 ${isMissing ? 'bg-destructive/5 ring-1 ring-destructive/30' : 'hover:bg-muted/40'}`}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    {isMissing ? (
-                                                        <MinusCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                                                    ) : col.required ? (
-                                                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-                                                    ) : (
-                                                        <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
-                                                    )}
-                                                    <span className="font-mono text-xs">{col.key}</span>
-                                                    <span className="text-xs text-muted-foreground">— {col.label}</span>
-                                                </div>
-                                                <span
-                                                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                                        isMissing
-                                                            ? 'bg-destructive text-destructive-foreground'
-                                                            : col.required
-                                                                ? 'bg-destructive/10 text-destructive'
-                                                                : 'bg-muted text-muted-foreground'
-                                                    }`}
-                                                >
-                                                    {isMissing ? 'missing' : col.required ? 'required' : 'optional'}
-                                                </span>
-                                            </div>
-                                        );
-                                    })}
+                            <div className="space-y-3">
+                                {/* Excel-like header preview */}
+                                <div className="overflow-x-auto rounded-md border">
+                                    <table className="border-collapse text-sm">
+                                        <thead>
+                                            <tr>
+                                                <th className="w-8 border-b border-r bg-muted px-2 py-1 text-center text-xs font-normal text-muted-foreground" />
+                                                {allColumns.map((col, i) => (
+                                                    <th
+                                                        key={col.key}
+                                                        className="min-w-[120px] border-b border-r bg-muted px-3 py-1 text-center text-xs font-normal text-muted-foreground last:border-r-0"
+                                                    >
+                                                        {String.fromCharCode(65 + i)}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td className="border-r bg-muted px-2 py-2 text-center text-xs text-muted-foreground">1</td>
+                                                {allColumns.map((col) => {
+                                                    const isMissing = missingSet.has(col.key) || missingSet.has(col.label);
+                                                    return (
+                                                        <td
+                                                            key={col.key}
+                                                            className={`border-r px-3 py-2.5 text-center last:border-r-0 ${
+                                                                isMissing
+                                                                    ? 'bg-destructive/10'
+                                                                    : col.required
+                                                                        ? ''
+                                                                        : 'opacity-60'
+                                                            }`}
+                                                        >
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className={`whitespace-nowrap font-medium ${isMissing ? 'text-destructive' : 'text-foreground'}`}>
+                                                                    {col.label}
+                                                                </span>
+                                                                <span className={`whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                                                                    isMissing
+                                                                        ? 'bg-destructive text-destructive-foreground'
+                                                                        : col.required
+                                                                            ? 'bg-primary/10 text-primary'
+                                                                            : 'bg-muted text-muted-foreground'
+                                                                }`}>
+                                                                    {isMissing ? 'missing' : col.required ? 'required' : 'optional'}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <p className="mt-2 text-sm text-muted-foreground">
-                                    Uploads with extra or missing required columns will be rejected.
+
+                                <p className="text-xs text-muted-foreground">
+                                    Your Excel file's first row must have these column headers exactly as shown above.
                                 </p>
                             </div>
                         )}
