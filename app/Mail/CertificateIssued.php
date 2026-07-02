@@ -6,6 +6,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailables\Headers;
 use Illuminate\Queue\SerializesModels;
 
 class CertificateIssued extends Mailable
@@ -18,6 +19,15 @@ class CertificateIssued extends Mailable
         public readonly string $certificateNo,
         public readonly string $certificateUrl,
     ) {}
+
+    public function headers(): Headers
+    {
+        $configSet = config('services.ses.options.ConfigurationSetName');
+
+        return new Headers(
+            text: $configSet ? ['X-SES-CONFIGURATION-SET' => $configSet] : [],
+        );
+    }
 
     public function envelope(): Envelope
     {
