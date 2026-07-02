@@ -24,6 +24,8 @@ class WebhookController extends Controller
         $messageType = $request->header('x-amz-sns-message-type');
         $body        = json_decode($request->getContent(), true);
 
+        Log::info('SES webhook received', ['type' => $messageType, 'body_keys' => array_keys($body ?? [])]);
+
         if (! $body) {
             return response()->json(['error' => 'Invalid payload'], 400);
         }
@@ -36,10 +38,13 @@ class WebhookController extends Controller
         }
 
         if ($messageType !== 'Notification') {
+            Log::info('SES webhook: ignoring message type', ['type' => $messageType]);
             return response()->json(['ok' => true]);
         }
 
         $message = json_decode($body['Message'] ?? '{}', true);
+
+        Log::info('SES webhook notification', ['notificationType' => $message['notificationType'] ?? 'none']);
 
         if (($message['notificationType'] ?? '') !== 'Bounce') {
             return response()->json(['ok' => true]);
@@ -59,7 +64,6 @@ class WebhookController extends Controller
             $diagnosticCode = $recipient['diagnosticCode'] ?? $reason;
 
             $log = EmailLog::where('to_address', $email)
-                ->whereIn('status', ['sent'])
                 ->latest('sent_at')
                 ->first();
 
@@ -74,12 +78,11 @@ class WebhookController extends Controller
                 'error_message' => $diagnosticCode,
             ]);
 
-            if ($log->sent_by) {
-                $log->load('sender');
-                $log->sender?->notify(new EmailBounced($log));
-            }
+            $log->load('sender');
+            $notifiable = $log->sender ?? \App\Models\User::find(1);
+            $notifiable?->notify(new EmailBounced($log));
 
-            Log::info("SES bounce webhook: marked email log #{$log->id} ({$email}) as bounced.");
+            Log::info("SES bounce webhook: marked email log #{$log->id} ({$email}) as bounced, notified user #{$notifiable?->id}.");
         }
 
         return response()->json(['ok' => true]);
