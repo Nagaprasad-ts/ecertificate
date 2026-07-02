@@ -26,6 +26,7 @@ export type AppNotification = {
         to_address: string;
         to_name: string;
         subject: string;
+        sent_by_name: string | null;
     };
     created_at: string;
 };

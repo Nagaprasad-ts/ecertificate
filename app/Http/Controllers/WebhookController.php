@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\EmailLog;
+use App\Models\User;
 use App\Notifications\EmailBounced;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -85,10 +86,27 @@ class WebhookController extends Controller
             ]);
 
             $log->load('sender');
-            $notifiable = $log->sender ?? \App\Models\User::find(1);
-            $notifiable?->notify(new EmailBounced($log));
 
-            Log::info("SES bounce webhook: marked email log #{$log->id} ({$email}) as bounced, notified user #{$notifiable?->id}.");
+            $notification  = new EmailBounced($log);
+            $notifiedIds   = [];
+
+            // Notify the sender
+            if ($log->sender) {
+                $log->sender->notify($notification);
+                $notifiedIds[] = $log->sender->id;
+            }
+
+            // Notify all super admins (skip if already notified as sender)
+            User::whereHas('role', fn ($q) => $q->where('slug', 'super_admin'))
+                ->get()
+                ->each(function (User $admin) use ($notification, &$notifiedIds) {
+                    if (! in_array($admin->id, $notifiedIds)) {
+                        $admin->notify($notification);
+                        $notifiedIds[] = $admin->id;
+                    }
+                });
+
+            Log::info("SES bounce webhook: marked email log #{$log->id} ({$email}) as bounced, notified users: " . implode(', ', $notifiedIds));
         }
 
         return response()->json(['ok' => true]);
