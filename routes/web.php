@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CertificateController;
 use App\Http\Controllers\WebhookController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -19,17 +20,17 @@ Route::get('/certificate/{certificateNo}',      [CertificateController::class, '
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/notifications', function () {
-        $notifications = auth()->user()->notifications()->latest()->paginate(20);
+        $notifications = Auth::user()->notifications()->latest()->paginate(20);
         return inertia('notifications/index', compact('notifications'));
     })->name('notifications.index');
 
     Route::post('/notifications/{id}/read', function (string $id) {
-        auth()->user()->notifications()->where('id', $id)->update(['read_at' => now()]);
+        Auth::user()->notifications()->where('id', $id)->update(['read_at' => now()]);
         return back();
     })->name('notifications.read');
 
     Route::post('/notifications/read-all', function () {
-        auth()->user()->unreadNotifications()->update(['read_at' => now()]);
+        Auth::user()->unreadNotifications()->update(['read_at' => now()]);
         return back();
     })->name('notifications.read-all');
 });
