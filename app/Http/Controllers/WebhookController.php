@@ -44,13 +44,25 @@ class WebhookController extends Controller
 
         $message = json_decode($body['Message'] ?? '{}', true);
 
-        Log::info('SES webhook notification', ['notificationType' => $message['notificationType'] ?? 'none']);
+        Log::info('SES webhook notification', [
+            'notificationType' => $message['notificationType'] ?? 'none',
+            'eventType'        => $message['eventType'] ?? 'none',
+            'raw_message'      => substr($body['Message'] ?? '', 0, 500),
+        ]);
 
-        if (($message['notificationType'] ?? '') !== 'Bounce') {
+        $notifType = $message['notificationType'] ?? $message['eventType'] ?? '';
+
+        if ($notifType !== 'Bounce') {
+            Log::info('SES webhook: not a bounce', ['notifType' => $notifType]);
             return response()->json(['ok' => true]);
         }
 
-        $bounce     = $message['bounce'];
+        $bounce = $message['bounce'] ?? $message['bounce'] ?? null;
+
+        if (! $bounce) {
+            Log::warning('SES webhook: bounce payload missing', ['message_keys' => array_keys($message)]);
+            return response()->json(['ok' => true]);
+        }
         $recipients = $bounce['bouncedRecipients'] ?? [];
         $reason     = $bounce['bounceSubType'] ?? $bounce['bounceType'] ?? 'Unknown';
 
