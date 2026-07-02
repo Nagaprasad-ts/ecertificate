@@ -24,7 +24,7 @@ class WebhookController extends Controller
         $messageType = $request->header('x-amz-sns-message-type');
         $body        = json_decode($request->getContent(), true);
 
-        Log::info('SES webhook received', ['type' => $messageType, 'body_keys' => array_keys($body ?? [])]);
+        Log::info('SES webhook received', ['type' => $messageType]);
 
         if (! $body) {
             return response()->json(['error' => 'Invalid payload'], 400);
@@ -44,17 +44,11 @@ class WebhookController extends Controller
 
         $message = json_decode($body['Message'] ?? '{}', true);
 
-        Log::info('SES webhook notification', [
-            'notificationType' => $message['notificationType'] ?? 'none',
-            'eventType'        => $message['eventType'] ?? 'none',
-            'raw_message'      => substr($body['Message'] ?? '', 0, 500),
-        ]);
 
         $notifType = $message['notificationType'] ?? $message['eventType'] ?? '';
 
         if ($notifType !== 'Bounce') {
-            Log::info('SES webhook: not a bounce', ['notifType' => $notifType]);
-            return response()->json(['ok' => true]);
+                return response()->json(['ok' => true]);
         }
 
         $bounce = $message['bounce'] ?? $message['bounce'] ?? null;
