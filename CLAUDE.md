@@ -349,9 +349,15 @@ To add extra columns to a template: edit the template in the admin UI — the re
 
 React components in `resources/js/certificate-templates/{event-slug}/{TemplateName}.tsx`. Each exports a default component accepting `CertificateProps` (defined in `certificate-templates/types.ts`).
 
-A custom Vite plugin (`templateManifestPlugin` in `vite.config.ts`) auto-scans the directory on build/dev-start and writes `storage/app/template-manifest.json` mapping `templateFile` slugs (e.g. `sargam/Participation`) to display names. The `templates` DB table is kept in sync via this manifest — no artisan command needed. Files prefixed with `_` are ignored by the scanner.
+A custom Vite plugin (`templateManifestPlugin` in `vite.config.ts`) auto-scans the directory on build/dev-start and writes `storage/app/template-manifest.json` mapping `templateFile` slugs to display names. `AppServiceProvider::syncTemplatesFromManifest()` reads that manifest on every boot (guarded by an mtime cache check) and `updateOrCreate`s rows in the `templates` table — no artisan command needed to pick up a *new* template file. `php artisan templates:sync` (`app/Console/Commands/SyncTemplates.php`) does the same upsert directly from disk and exists as a manual fallback. Files prefixed with `_` are ignored by both.
+
+**Neither sync path deletes anything.** If you remove a template's `.tsx` file, its row in `templates` stays behind indefinitely — delete it manually (check `Participant::where('template_id', ...)` first for existing certificates issued against it before deleting).
+
+Current design convention (as of the `new-horizon-cup/SportsCertificate.tsx` template): logos and signatures are baked directly into the certificate's background PNG asset and static JSX — the `logos`/`signatures` props exist on `CertificateProps` for backward compatibility but aren't rendered. `CertificateController` still hardcodes `'logos' => []` and queries `Signature::...->get(['id','name','designation','signature'])` (scoped to drop `resignation_date`, which has no reason to appear in a public payload) for older templates that do render dynamic signatures via `signatures.map(...)`.
 
 At render time, `certificates/show` and `certificates/preview` do a dynamic `import()` keyed by `templateFile` to load the correct component. Public certificates (`/certificate/{no}`) only show participants with `status = 'active'`.
+
+**html2canvas gotcha:** the certificate root div always has `id="certificate-paper"`. `certificates/show.tsx` renders exactly one layout (mobile or desktop) at a time gated by a JS `matchMedia` check (`isMobile` state) — never render both simultaneously with only CSS (`sm:hidden`/`hidden sm:block`) to toggle visibility. Two DOM nodes sharing that ID means `document.getElementById('certificate-paper')` silently grabs the wrong one (whichever is first in DOM order) during PDF/PNG capture, even though the *visible* one looks correct on screen.
 
 ### Vite bundle splitting
 
@@ -389,12 +395,13 @@ Intelephense confuses Eloquent static methods with PHP built-ins and raises "Not
 
 | File | Owns |
 |---|---|
+| `routes/notifications.php` | Notification index + mark-read routes |
 | `routes/assets.php` | Logos, signatures, templates, template preview |
 | `routes/events.php` | Events (CRUD, archive/unarchive, bulk-destroy) + event editions |
 | `routes/participants.php` | Participants (CRUD, bulk-destroy) + certificate preview + all import routes |
 | `routes/admin.php` | Import batches, super-admin group (users/roles/permissions), email-logs, artisan-commands |
 
-Each domain file carries its own `use` imports. Never add `->middleware('permission:…')` to routes — put it in the controller's `HasMiddleware` instead.
+Each domain file carries its own `use` imports. Never add `->middleware('permission:…')` to routes — put it in the controller's `HasMiddleware` instead. When adding a new route domain, follow this pattern: create a dedicated `routes/{domain}.php` and `require` it from `web.php` — don't add closures/routes directly in `web.php`.
 
 ### Controller and service layout (participants domain)
 

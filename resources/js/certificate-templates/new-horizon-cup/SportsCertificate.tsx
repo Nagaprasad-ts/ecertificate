@@ -148,7 +148,13 @@ export default function SportsCertificate({ participant, logos }: CertificatePro
                         lineHeight: 1.5,
                         zIndex: 10
                     }}>
-                        <a href={`/certificate/${participant.certificate_no}`} target="_blank">Cert No:&nbsp;{participant.certificate_no}</a>
+                        <a
+                            href={`/certificate/${participant.certificate_no}`}
+                            target="_blank"
+                            style={{ color: '#111111', textDecoration: 'none', fontSize: '12px' }}
+                        >
+                            Cert No:&nbsp;{participant.certificate_no}
+                        </a>
                     </div>
                 </div>
             </div>

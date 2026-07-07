@@ -47,8 +47,9 @@ class CertificateController extends Controller implements HasMiddleware
                 'event_name' => $participant->edition?->event?->event_name ?? '',
                 'year' => $participant->edition?->year ?? now()->year,
             ],
+            // Public, unauthenticated endpoint — never expose staff signature data here.
             'logos' => [],
-            'signatures' => Signature::orderByDesc('id')->take(3)->get(),
+            'signatures' => [],
         ]);
     }
 
@@ -67,8 +68,9 @@ class CertificateController extends Controller implements HasMiddleware
                 'event_name' => $participant->edition?->event?->event_name ?? '',
                 'year' => $participant->edition?->year ?? now()->year,
             ],
+            // Public, unauthenticated endpoint — never expose staff signature data here.
             'logos' => [],
-            'signatures' => Signature::orderByDesc('id')->take(3)->get(),
+            'signatures' => [],
         ]);
     }
 
@@ -85,7 +87,7 @@ class CertificateController extends Controller implements HasMiddleware
                 'year' => $participant->edition?->year ?? now()->year,
             ],
             'logos' => [],
-            'signatures' => Signature::orderByDesc('id')->take(3)->get(),
+            'signatures' => Signature::orderByDesc('id')->take(3)->get(['id', 'name', 'designation', 'signature']),
         ]);
     }
 
@@ -158,7 +160,7 @@ class CertificateController extends Controller implements HasMiddleware
                 'year' => now()->year,
             ],
             'logos' => [],
-            'signatures' => Signature::latest()->take(3)->get(),
+            'signatures' => Signature::latest()->take(3)->get(['id', 'name', 'designation', 'signature']),
         ]);
     }
 }

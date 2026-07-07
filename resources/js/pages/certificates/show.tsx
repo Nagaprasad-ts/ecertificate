@@ -57,18 +57,43 @@ export default function CertificateShow({ templateFile, participant, event, logo
     const [loaded, setLoaded] = useState<{ file: string; Component: ComponentType<CertificateProps> } | null>(null);
     const [downloading, setDownloading] = useState<'pdf' | 'png' | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
+    // Tracks the sm breakpoint (640px) so only ONE certificate layout is ever mounted —
+    // rendering both (even with CSS hidden classes) creates two #certificate-paper
+    // elements, and getElementById always grabs the first (the scaled-down mobile one).
+    const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 639px)').matches);
 
     // Load template client-side only — avoids Suspense + SSR renderToString conflict
     useEffect(() => {
         let cancelled = false;
         const key = `/resources/js/certificate-templates/${templateFile}.tsx`;
         const importer = modules[key] as TemplateImporter | undefined;
-        if (!importer) { console.error(`Template not found: ${key}`); return; }
+        
+        if (!importer) { 
+            console.error(`Template not found: ${key}`); 
+            
+            return; 
+        }
+        
         void importer()
-            .then((mod) => { if (!cancelled) setLoaded({ file: templateFile, Component: mod.default }); })
+            .then((mod) => { 
+                if (!cancelled) {
+                    setLoaded({ file: templateFile, Component: mod.default });
+                } 
+            })
             .catch((err: unknown) => console.error('Template load failed:', err));
-        return () => { cancelled = true; };
+        
+            return () => { 
+                cancelled = true; 
+            };
     }, [templateFile]);
+
+    useEffect(() => {
+        const mql = window.matchMedia('(max-width: 639px)');
+        const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+        mql.addEventListener('change', handler);
+        
+        return () => mql.removeEventListener('change', handler);
+    }, []);
 
     const Template = loaded?.file === templateFile ? loaded.Component : null;
 
@@ -80,7 +105,7 @@ export default function CertificateShow({ templateFile, participant, event, logo
         throw new Error('Certificate element not found');
     }
 
-    // Wait safely until images finish download procedures
+    // Wait for all images to load
     await Promise.all(
         Array.from(el.querySelectorAll('img')).map((img) =>
             img.complete
@@ -92,26 +117,53 @@ export default function CertificateShow({ templateFile, participant, event, logo
         ),
     );
 
+    // Wait for fonts — both the general signal and Open Sans specifically
+    await document.fonts.ready;
+    await Promise.all([
+        document.fonts.load('600 24px "Open Sans"').catch(() => {}),
+        document.fonts.load('700 24px "Open Sans"').catch(() => {}),
+        document.fonts.load('800 24px "Open Sans"').catch(() => {}),
+    ]);
+
     return html2canvas(el, {
         scale: 2,
-        useCORS: false,      // All images are same-origin — CORS mode not needed
-        allowTaint: true,    // Allow same-origin images without crossOrigin attribute
+        useCORS: false,
+        allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false,
         imageTimeout: 15000,
-        // FIX: Hardcode target frame spaces to prevent dynamic engine shrinkage 
         width: 1123,
         height: 794,
         windowWidth: 1123,
         windowHeight: 794,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
         onclone: (clonedDoc) => {
             const clonedEl = clonedDoc.getElementById('certificate-paper');
-            
+
             if (clonedEl) {
+                // Pin the certificate to the top-left corner, out of the centered
+                // flex wrapper entirely — so its position no longer depends on the
+                // wrapper's padding/overflow/width during capture.
+                clonedEl.style.position = 'fixed';
+                clonedEl.style.top = '0';
+                clonedEl.style.left = '0';
+                clonedEl.style.margin = '0';
                 clonedEl.style.width = '1123px';
                 clonedEl.style.height = '794px';
+
+                const parent = clonedEl.parentElement;
+                
+                if (parent) {
+                    parent.style.padding = '0';
+                    parent.style.overflow = 'visible';
+                    parent.style.minHeight = 'auto';
+                    parent.style.display = 'block';
+                }
             }
-            
+
             clonedDoc.querySelectorAll('style').forEach((s) => {
                 if (s.textContent && s.textContent.includes('oklch')) {
                     s.textContent = replaceOklch(s.textContent);
@@ -180,9 +232,9 @@ export default function CertificateShow({ templateFile, participant, event, logo
             </div>
 
             {Template ? (
-                <>
-                    {/* ── Mobile layout ── */}
-                    <div className="flex min-h-screen flex-col bg-muted/30 sm:hidden print:hidden">
+                isMobile ? (
+                    /* ── Mobile layout ── */
+                    <div className="flex min-h-screen flex-col bg-muted/30 print:hidden">
                         {/* Certificate scaled to fit */}
                         <div
                             className="w-full overflow-hidden bg-white shadow"
@@ -236,12 +288,10 @@ export default function CertificateShow({ templateFile, participant, event, logo
                             </Link>
                         </div>
                     </div>
-
-                    {/* ── Desktop layout ── */}
-                    <div className="hidden sm:block">
-                        <Template participant={participant} event={event} logos={logos} signatures={signatures} />
-                    </div>
-                </>
+                ) : (
+                    /* ── Desktop layout ── */
+                    <Template participant={participant} event={event} logos={logos} signatures={signatures} />
+                )
             ) : (
                 <div className="flex min-h-screen items-center justify-center text-gray-500">
                     Loading certificate…
