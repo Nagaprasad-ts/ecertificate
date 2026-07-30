@@ -2,7 +2,7 @@ import type { CertificateProps } from '../types';
 
 type AchievementData = {
     position?: string;
-    title?: string;
+    idea_title?: string;
 };
 
 export default function CertificateOfAchievement({ participant }: CertificateProps) {
@@ -87,7 +87,7 @@ export default function CertificateOfAchievement({ participant }: CertificatePro
                         <p style={{ margin: 0 }}>
                             for securing the {val(d.position)} Position in the{' '}
                             <strong>UDAAN Intra-Institutional Business Plan Competition 2026</strong> with the idea
-                            titled &ldquo;{val(d.title)}&rdquo;, organised by the{' '}
+                            titled &ldquo;{val(d.idea_title)}&rdquo;, organised by the{' '}
                             <strong>
                                 New Horizon Council for Innovation, Incubation and Entrepreneurship (NHCIIE), Department of
                                 Management Studies, New Horizon College of Engineering, Bengaluru
