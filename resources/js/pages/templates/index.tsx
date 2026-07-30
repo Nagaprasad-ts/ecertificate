@@ -16,6 +16,7 @@ export default function TemplatesIndex({ templates }: { templates: Template[] })
     const canCreate = auth.is_super_admin || auth.permissions.includes('templates.create');
     const canUpdate = auth.is_super_admin || auth.permissions.includes('templates.update');
     const canDelete = auth.is_super_admin || auth.permissions.includes('templates.delete');
+    const canPreview = auth.is_super_admin || auth.permissions.includes('certificates.preview');
 
     const [search, setSearch]         = useState('');
     const [deleting, setDeleting]     = useState<Template | null>(null);
@@ -31,14 +32,19 @@ export default function TemplatesIndex({ templates }: { templates: Template[] })
         : templates;
 
     function handleDelete() {
-        if (!deleting) return;
+        if (!deleting) {
+            return;
+        }
+        
         router.delete(`/templates/${deleting.id}`, { onFinish: () => setDeleting(null) });
     }
 
     function handleBulkDelete() {
         router.delete('/templates/bulk-destroy', {
             data: { ids: [...selected] },
-            onFinish: () => { clear(); setBulkConfirm(false); },
+            onFinish: () => { 
+                clear(); setBulkConfirm(false); 
+            },
         });
     }
 
@@ -75,7 +81,11 @@ export default function TemplatesIndex({ templates }: { templates: Template[] })
                                     <th className="w-10 px-4 py-3">
                                         <Checkbox
                                             checked={isAllSelected}
-                                            ref={(el) => { if (el) (el as any).indeterminate = isIndeterminate; }}
+                                            ref={(el) => { 
+                                                if (el) {
+                                                    (el as any).indeterminate = isIndeterminate;
+                                                } 
+                                            }}
                                             onCheckedChange={toggleAll}
                                         />
                                     </th>
@@ -109,9 +119,9 @@ export default function TemplatesIndex({ templates }: { templates: Template[] })
                                         <td className="px-4 py-3 font-medium">{tpl.name}</td>
                                         <td className="max-w-sm truncate px-4 py-3 font-mono text-xs text-muted-foreground">{tpl.template_file}</td>
                                         <td className="px-4 py-3">
-                                            {(canUpdate || canDelete) && (
+                                            {(canUpdate || canDelete || canPreview) && (
                                                 <div className="flex items-center justify-end gap-2">
-                                                    {canUpdate && (
+                                                    {canPreview && (
                                                         <Button variant="secondary" size="sm" asChild>
                                                             <Link href={`/templates/${tpl.id}/preview`} target="_blank"><Eye className="h-3.5 w-3.5" /></Link>
                                                         </Button>

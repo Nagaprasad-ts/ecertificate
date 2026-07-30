@@ -19,9 +19,8 @@ class CertificateController extends Controller implements HasMiddleware
     {
         return [
             // show is public — no middleware needed
-            // preview requires authentication + certificates.preview permission
-            new Middleware('permission:certificates.preview', only: ['preview']),
-            // templatePreview stays guarded by the inline abort_unless(super_admin) check
+            // preview and templatePreview require authentication + certificates.preview permission
+            new Middleware('permission:certificates.preview', only: ['preview', 'templatePreview']),
         ];
     }
 
@@ -139,15 +138,9 @@ class CertificateController extends Controller implements HasMiddleware
         ]);
     }
 
-    // Super-admin template preview with sample data
-    public function templatePreview(Request $request, Template $template): Response
+    // Template preview with sample data — gated by certificates.preview permission
+    public function templatePreview(Template $template): Response
     {
-        abort_unless(
-            $request->user()->role?->slug === 'super_admin',
-            403,
-            'Only super admins can preview templates.'
-        );
-
         return Inertia::render('certificates/preview', [
             'templateFile' => $template->template_file,
             'participant' => [

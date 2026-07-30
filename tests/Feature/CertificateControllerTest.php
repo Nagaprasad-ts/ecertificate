@@ -103,3 +103,38 @@ test('certificate preview returns 403 for user without certificates.preview perm
         ->get(route('certificates.preview', $participant))
         ->assertForbidden();
 });
+
+// ── Template preview ──────────────────────────────────────────────────────────
+
+test('template preview requires authentication', function () {
+    $template = Template::create(['name' => 'Basic', 'template_file' => 'basic.html']);
+
+    $this->get(route('templates.preview', $template))
+        ->assertRedirect(route('login'));
+});
+
+test('template preview returns 403 for user without certificates.preview permission', function () {
+    $template = Template::create(['name' => 'Basic', 'template_file' => 'basic.html']);
+    $user     = userWithPermission('some.other.permission');
+
+    $this->actingAs($user)
+        ->get(route('templates.preview', $template))
+        ->assertForbidden();
+});
+
+test('template preview is accessible for user with certificates.preview permission', function () {
+    $template = Template::create(['name' => 'Basic', 'template_file' => 'basic.html']);
+    $user     = userWithPermission('certificates.preview');
+
+    $this->actingAs($user)
+        ->get(route('templates.preview', $template))
+        ->assertOk();
+});
+
+test('template preview is accessible for super admin', function () {
+    $template = Template::create(['name' => 'Basic', 'template_file' => 'basic.html']);
+
+    $this->actingAs(superAdmin())
+        ->get(route('templates.preview', $template))
+        ->assertOk();
+});
